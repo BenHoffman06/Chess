@@ -13,6 +13,7 @@ import java.util.Objects;
 import javax.sound.sampled.*;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Main {
 
@@ -36,7 +37,6 @@ public class Main {
     };
 
     public static Square selectedSquare = null;
-    public static Square hoverSquare = null;
     public static boolean beingDragged = false;
     public static int dragX, dragY;
 
@@ -66,7 +66,7 @@ public class Main {
 
     public static JPanel mainPanel;
 
-    // Load piece images into a dictionary
+    //region Load piece images into a dictionary
     public static final Map<Byte, BufferedImage> pieceImages = new HashMap<>(12);
     static {
         ClassLoader classLoader = Main.class.getClassLoader();
@@ -87,7 +87,9 @@ public class Main {
             throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
         }
     }
+    //endregion
 
+    public static int offsetX, offsetY; // Offset of click within the square
     //endregion
 
     public static void setBoardFromFEN(String fen) {
@@ -182,10 +184,12 @@ public class Main {
         square2.piece = square1.piece;
         square1.piece = EMPTY;
 
+        selectedSquare = null;
         mainPanel.repaint();
 
         String moveNotation = movingPieceStr + takesString + toLocation;
         System.out.println(moveNotation);
+
         return moveNotation;
     }
 
@@ -204,53 +208,6 @@ public class Main {
             this.color = color;
             this.location = name;
             this.piece = EMPTY;
-
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mousePressed(MouseEvent e) {
-                    if (selectedSquare == null) {
-                        selectedSquare = Square.this;
-                        mainPanel.repaint();
-                        return;
-                    }
-                    if (selectedSquare != Square.this) {
-
-                        if (selectedSquare.piece == EMPTY) {
-                            // Select square if not already selected
-                            selectedSquare = Square.this;
-                        } else {
-                            // If changing selected squares and original selected square had a piece, move it to newly selected square
-                            movePiece(selectedSquare, Square.this);
-                        }
-
-
-                    } else {
-                        // If square is already selected, unselect it
-                        selectedSquare = null;
-                    }
-                    mainPanel.repaint();
-                }
-            });
-
-            addMouseMotionListener(new MouseMotionAdapter() {
-                @Override
-                public void mouseDragged(MouseEvent e) {
-                    // Keep track of dragging and location
-                    Point point = SwingUtilities.convertPoint(Square.this, e.getPoint(), mainPanel);
-                    dragX = (int) point.getX();
-                    dragY = (int) point.getY();
-                    beingDragged = true;
-
-                    mainPanel.repaint();
-                }
-            });
-
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) {
-                    hoverSquare = Square.this;
-                }
-            });
 
         }
 
@@ -299,11 +256,6 @@ public class Main {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
 
-            // Use Graphics2D with rendering hints
-            Graphics2D g2d = (Graphics2D) g;
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-
             // Color square depending on if selected
             g.setColor(color);
             if (isSelected()) {
@@ -312,7 +264,7 @@ public class Main {
             }
             g.fillRect(0, 0, getWidth(), getHeight());
 
-            // Draw piece not being dragged
+            // Draw piece if NOT being dragged
             if (piece != EMPTY && !isBeingDragged()) {
                 BufferedImage img = pieceImages.get(piece);
                 g.drawImage(img, 0, 0, getWidth(), getHeight(), this);
@@ -320,8 +272,57 @@ public class Main {
         }
     }
 
+    /**
+     * Also sets up mouselistener for program and links it to GUI
+     * @return
+     */
     private static JPanel handleGUI() {
         System.setProperty("sun.java2d.opengl", "true");
+
+        MouseAdapter mouseHandler = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                Square clickedSquare = getSquareAt(e.getPoint());
+                if (clickedSquare != null && clickedSquare.piece != EMPTY) {
+                    handleSquareSelection(clickedSquare);
+
+                    // Calculate offset
+                    offsetX = e.getX() - clickedSquare.getX();
+                    offsetY = e.getY() - clickedSquare.getY();
+                }
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+
+                dragX = e.getX();
+                dragY = e.getY();
+                beingDragged = true;
+                mainPanel.repaint();
+
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                // This works for both drag and drop and point and click
+                Square targetSquare = getSquareAt(e.getPoint());
+                if (targetSquare != null && targetSquare != selectedSquare && selectedSquare != null) {
+                    movePiece(selectedSquare, targetSquare);
+                }
+
+                beingDragged = false;
+
+            }
+
+            private Square getSquareAt(Point p) {
+                for (Square square : board) {
+                    if (square.getBounds().contains(p)) {
+                        return square;
+                    }
+                }
+                return null;
+            }
+        };
 
         // Setup mainPanel
         mainPanel = new JPanel(null) {
@@ -340,14 +341,17 @@ public class Main {
             public void paint(Graphics g) {
                 super.paint(g);
                 if (selectedSquare != null && selectedSquare.piece != EMPTY && selectedSquare.isBeingDragged()) {
-                    int x = dragX - selectedSquare.getWidth() / 2;
-                    int y = dragY - selectedSquare.getHeight() / 2;
+                    int x = dragX - offsetX; // Use the offset here
+                    int y = dragY - offsetY;
                     BufferedImage img = pieceImages.get(selectedSquare.piece);
                     g.drawImage(img, x, y, selectedSquare.getWidth(), selectedSquare.getHeight(), this);
                 }
             }
             //endregion
         };
+
+        mainPanel.addMouseListener(mouseHandler);
+        mainPanel.addMouseMotionListener(mouseHandler);
 
         // Setup frame
         JFrame frame = new JFrame("Chess");
@@ -373,11 +377,34 @@ public class Main {
         });
         resizeSquares((JPanel) frame.getContentPane());
 
-
         frame.setVisible(true);
 
         return mainPanel;
     }
+
+    private static void handleSquareSelection(Square s) {
+        System.out.println("Selected square: " + selectedSquare + ", this: " + s);
+        if (selectedSquare == null) {
+            // Select this square only if it has a piece
+            if (s.piece != EMPTY) {
+                selectedSquare = s;
+            }
+        } else {
+            if (selectedSquare != s) {
+                // If the selected square has a piece, move it to this square
+                if (selectedSquare.piece != EMPTY) {
+                    movePiece(selectedSquare, s);
+                }
+                // Clear selection after move or if selected square was empty
+                selectedSquare = null;
+            } else {
+                // Clicking the same square again: deselect
+                selectedSquare = null;
+            }
+        }
+        mainPanel.repaint();
+    }
+
 
     private static void resizeSquares(JPanel panel) {
         int width = panel.getWidth();
