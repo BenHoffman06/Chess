@@ -7,9 +7,13 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class UI {
     //region Constants and Variables
@@ -19,6 +23,10 @@ public class UI {
     public static final Color BLACK = Color.decode("#b58863");
     public static final Color SELECTED_WHITE = Color.decode("#829769");
     public static final Color SELECTED_BLACK = Color.decode("#646f40");
+    public static final Color RED = Color.decode("#af5f5f");
+
+    public static int redCountdown = 0;
+    public static Main.Square redSquare;
 
     // Piece images
     public static final Map<Byte, BufferedImage> pieceImages = new HashMap<>(12);
@@ -73,7 +81,7 @@ public class UI {
             if (selectedSquare != s) {
                 // If the selected square has a piece, move it to this square
                 if (selectedSquare.piece != Main.EMPTY) {
-                    Main.movePiece(selectedSquare, s);
+                    Main.tryMovePiece(selectedSquare, s);
                 }
                 // Clear selection after move or if selected square was empty
                 selectedSquare = null;
@@ -99,12 +107,24 @@ public class UI {
             @Override
             public void mousePressed(MouseEvent e) {
                 Main.Square clickedSquare = getSquareAt(e.getPoint());
+//                System.out.println("Mouse Pressed on Square: " + (clickedSquare != null ? clickedSquare.location : "null")); // ADDED
                 if (clickedSquare != null && clickedSquare.piece != Main.EMPTY) {
                     handleSquareSelection(clickedSquare);
+//                    System.out.println("Piece selected on Square: " + clickedSquare.location + ", Piece type: " + clickedSquare.piece); // ADDED
 
                     // Calculate offset
                     offsetX = e.getX() - clickedSquare.getX();
                     offsetY = e.getY() - clickedSquare.getY();
+                } else {
+//                    System.out.println("No piece selected or clicked outside board."); // ADDED
+                    handleSquareSelection(clickedSquare); // Still call handleSquareSelection even if no piece (to handle deselection)
+                }
+
+                if (selectedSquare == null || selectedSquare.isEmpty()) {
+                    Main.accessibleMoves.clear();
+                }
+                else {
+                    Main.accessibleMoves = Main.accessibleSquaresOf(UI.selectedSquare);
                 }
             }
 
@@ -121,7 +141,7 @@ public class UI {
                 // Handle piece movement on release
                 Main.Square targetSquare = getSquareAt(e.getPoint());
                 if (targetSquare != null && targetSquare != selectedSquare && selectedSquare != null) {
-                    Main.movePiece(selectedSquare, targetSquare);
+                    Main.tryMovePiece(selectedSquare, targetSquare);
                 }
                 beingDragged = false;
             }
@@ -150,12 +170,32 @@ public class UI {
             @Override
             public void paint(Graphics g) {
                 super.paint(g);
+
+                // Draw dragging pieces
                 if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && UI.isDragging(selectedSquare)) {
                     int x = dragX - offsetX; // Use the offset here
                     int y = dragY - offsetY;
                     BufferedImage img = pieceImages.get(selectedSquare.piece);
                     g.drawImage(img, x, y, selectedSquare.getWidth(), selectedSquare.getHeight(), this);
                 }
+
+                // Draw accessible moves
+                for (Main.Square s : Main.board) {
+                    for (Byte b : Main.accessibleMoves ) {
+                        if ((int) b == (int) s.index){
+                            double width = (.27 * s.getWidth());
+                            int topLeft = (int) (((double) s.getWidth() / 2) - (width / 2));
+
+                            Point pos = getSquarePosition(s.index);
+                            Color color = (s.isWhite()) ? SELECTED_WHITE : SELECTED_BLACK;
+                            g.setColor(color);
+                            g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
+
+                        }
+                    }
+                }
+                // TODO add special rendering for pieces which are accessibleSquaresOf(selectedPiece)
+
             }
         };
 
@@ -185,6 +225,20 @@ public class UI {
         });
         resizeSquares((JPanel) frame.getContentPane());
 
+        //region redCountdown decrementer
+        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
+        executor.scheduleAtFixedRate(() -> {
+
+            if (redCountdown > 0) {
+                redCountdown -= 1;
+                if (redCountdown == 0) {
+                    mainPanel.repaint();
+                }
+            }
+        }, 0, 10, TimeUnit.MILLISECONDS);
+        //endregion
+
         frame.setVisible(true);
 
         return mainPanel;
@@ -206,6 +260,21 @@ public class UI {
         }
     }
     //endregion
+
+    public static Point getSquarePosition(int index) {
+        int row = index / 8;
+        int col = index % 8;
+
+        int size = Math.min(mainPanel.getWidth(), mainPanel.getHeight()) / 8;
+        int startX = (mainPanel.getWidth() - size * 8) / 2;
+        int startY = (mainPanel.getHeight() - size * 8) / 2;
+
+        int x = startX + col * size;
+        int y = startY + row * size;
+
+        return new Point(x, y);
+    }
+
 
     //region Sound Effects
     private static void playCaptureSound() {
