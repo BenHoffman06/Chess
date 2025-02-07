@@ -1,4 +1,5 @@
 import javax.imageio.ImageIO;
+import javax.net.ssl.CertPathTrustManagerParameters;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -16,7 +17,7 @@ public class Main {
     public static Square[] board = new Square[64];
 
     // Moves
-    public static ArrayList<String> moves = new ArrayList<>();
+    public static ArrayList<Move> moves = new ArrayList<>();
 
     // Square names
     public static String[] squareName = {
@@ -150,13 +151,21 @@ public class Main {
         boolean canMakeMove = (accessibleSquaresOf(square1).contains(square2.index));
 
         if (canMakeMove) {
-            System.out.println("Calling movePiece");
-            movePiece(square1, square2);
+//            System.out.println("Calling movePiece");
+            String moveNotation = movePiece(square1, square2);
+            UI.mainPanel.repaint();
+            int moveNumber = moves.size() + 1;
+            moves.add(new Move(moveNumber, moveNotation, square1, square2));
         }
         else {
+//            System.out.println("Illegal Move");
             moveNotPossible = true;
+            UI.selectedSquare = null;
+
             UI.redCountdown = 25;
             UI.redSquare = square2;
+
+            UI.mainPanel.repaint();
         }
     }
 
@@ -185,16 +194,66 @@ public class Main {
             UI.handleCapture(square2.piece);
             takesString = "x";
         }
-        square2.piece = square1.piece;
-        square1.piece = EMPTY;
 
         UI.selectedSquare = null;
-        UI.mainPanel.repaint();
+
+        //region Castling
+        boolean kingMove = Math.abs(square1.piece) == WHITE_KING;
+        if (kingMove) {
+            System.out.println("Castle :)");
+            // Check if it wasn't just a normal king move
+            if (Math.abs(square2.index - square1.index) > 1) {
+
+                // If doing kingside castle
+                if (square2.index > square1.index) {
+                    // bring rookSquare other side
+                    Square rookSquare = board[square2.index + 1];
+                    Square otherSide = board[square2.index - 1];
+                    otherSide.piece = rookSquare.piece;
+                    rookSquare.piece = EMPTY;
+
+                    // Move king
+                    square2.piece = square1.piece;
+                    square1.piece = EMPTY;
+
+                    // Update
+                    System.out.println(rookSquare);
+                    rookSquare.repaint();
+                    otherSide.repaint();
+
+                    // Return notation
+                    return "O-O";
+                }
+
+                // If doing queenside castle
+                else {
+                    // bring rook other side
+                    Square rookSquare = board[square2.index - 2];
+                    Square otherSide = board[square2.index + 1];
+                    otherSide.piece = rookSquare.piece;
+                    rookSquare.piece = EMPTY;
+
+                    // Move kind
+                    square2.piece = square1.piece;
+                    square1.piece = EMPTY;
+
+                    // Update
+                    rookSquare.repaint();
+                    otherSide.repaint();
+
+                    // Return notation
+                    return "O-O-O";
+                }
+            }
+        }
+        //endregion
+        else {
+            square2.piece = square1.piece;
+            square1.piece = EMPTY;
+        }
 
         String moveNotation = movingPieceStr + takesString + toLocation;
-        System.out.println(moveNotation);
 
-        moves.add(moveNotation);
         return moveNotation;
     }
 
@@ -251,6 +310,16 @@ public class Main {
             }
         }
 
+        public boolean hasChanged() {
+            for (Move m : moves) {
+                // If square has been moved to or from, it has changed
+                if (index == m.square1.index || index == m.square2.index) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
 //            System.out.println("Square.paintComponent called for location: " + this.location + ", selectedSquare: " + (UI.selectedSquare != null ? UI.selectedSquare.location : "null") + ", accessibleMoves: " + accessibleMoves); // ADDED DEBUG PRINT
@@ -284,7 +353,6 @@ public class Main {
     }
 
     //region Piece Logic
-    public static int timesAccessibleSquaresOfCalled = 0;
     public static ArrayList<Byte> accessibleSquaresOf(Square square) {
 //        System.out.println(++timesAccessibleSquaresOfCalled);
         ArrayList<Byte> accessibleSquares = new ArrayList<>();
@@ -494,30 +562,71 @@ public class Main {
                 }
             }
             case WHITE_KING, BLACK_KING -> {
+                //region Normal Moves
                 if (squaresLeft > 0) {
-                    accessibleSquares.add((byte) (location - 1));
+                    // If the piece on that square is not the same color (then either empty or black)
+                    if (board[location - 1].piece * piece <= 0) {
+                        // Add it to accessible squares
+                        accessibleSquares.add((byte) (location - 1));
+                    }
                 }
                 if (squaresRight > 0) {
-                    accessibleSquares.add((byte) (location + 1));
+                    if (board[location + 1].piece * piece <= 0) {
+                        accessibleSquares.add((byte) (location + 1));
+                    }
                 }
                 if (squaresUp > 0) {
-                    accessibleSquares.add((byte) (location - 8));
+                    if (board[location - 8].piece * piece <= 0) {
+                        accessibleSquares.add((byte) (location - 8));
+                    }
                 }
                 if (squaresDown > 0) {
-                    accessibleSquares.add((byte) (location + 8));
+                    if (board[location + 8].piece * piece <= 0) {
+                        accessibleSquares.add((byte) (location + 8));
+                    }
                 }
-
                 if (squaresLeft > 0 && squaresUp > 0) {
-                    accessibleSquares.add((byte) (location - 9));
+                    if (board[location - 9].piece * piece <= 0) {
+                        accessibleSquares.add((byte) (location - 9));
+                    }
                 }
                 if (squaresRight > 0 && squaresUp > 0) {
-                    accessibleSquares.add((byte) (location - 7));
+                    if (board[location - 7].piece * piece <= 0) {
+                        accessibleSquares.add((byte) (location - 7));
+                    }
                 }
                 if (squaresRight > 0 && squaresDown > 0) {
-                    accessibleSquares.add((byte) (location + 9));
+                    if (board[location + 9].piece * piece <= 0) {
+                        accessibleSquares.add((byte) (location + 9));
+                    }
                 }
                 if (squaresRight > 0 && squaresDown > 0) {
-                    accessibleSquares.add((byte) (location + 7));
+                    if (board[location + 7].piece * piece <= 0) {
+                        accessibleSquares.add((byte) (location + 7));
+                    }
+                }
+                //endregion
+
+                // Castling Check
+                boolean kingMoved = square.hasChanged();
+                boolean rightRookMoved = true;
+                boolean leftRookMoved = true;
+                if (!kingMoved) {
+                    rightRookMoved = board[location + 3].hasChanged();
+                    leftRookMoved = board[location - 4].hasChanged();
+                }
+
+                boolean rightSpaceIsOpen = (board[location + 1].isEmpty() && board[location + 2].isEmpty());
+                boolean leftSpaceIsOpen = (board[location - 1].isEmpty() && board[location - 2].isEmpty() && board[location - 3].isEmpty());
+
+                // Right Side
+                if (!kingMoved && !rightRookMoved && rightSpaceIsOpen) {
+                    accessibleSquares.add((byte) (location + 2));
+                }
+
+                // Left Side
+                if (!kingMoved && !leftRookMoved && leftSpaceIsOpen) {
+                    accessibleSquares.add((byte) (location - 2));
                 }
             }
         }

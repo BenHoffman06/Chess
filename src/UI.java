@@ -25,6 +25,10 @@ public class UI {
     public static final Color SELECTED_BLACK = Color.decode("#646f40");
     public static final Color RED = Color.decode("#af5f5f");
 
+    public static final byte TAKEABLE_WHITE = 50;
+    public static final byte TAKEABLE_BLACK = -50;
+
+
     public static int redCountdown = 0;
     public static Main.Square redSquare;
 
@@ -56,6 +60,9 @@ public class UI {
             pieceImages.put(Main.BLACK_ROOK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bR (Custom).png"))));
             pieceImages.put(Main.BLACK_QUEEN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bQ (Custom).png"))));
             pieceImages.put(Main.BLACK_KING, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bK (Custom).png"))));
+            pieceImages.put(TAKEABLE_WHITE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-white.png"))));
+            pieceImages.put(TAKEABLE_BLACK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-black.png"))));
+
         } catch (IOException e) {
             throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
         }
@@ -144,6 +151,10 @@ public class UI {
                     Main.tryMovePiece(selectedSquare, targetSquare);
                 }
                 beingDragged = false;
+
+                if (selectedSquare == null || selectedSquare.isEmpty()) {
+                    Main.accessibleMoves.clear();
+                }
             }
 
             private Main.Square getSquareAt(Point p) {
@@ -189,8 +200,13 @@ public class UI {
                             Point pos = getSquarePosition(s.index);
                             Color color = (s.isWhite()) ? SELECTED_WHITE : SELECTED_BLACK;
                             g.setColor(color);
-                            g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
 
+                            if (s.piece == Main.EMPTY) {
+                                g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
+                            } else {
+                                BufferedImage img = (s.isWhite()) ? pieceImages.get(TAKEABLE_WHITE) : pieceImages.get(TAKEABLE_BLACK);
+                                g.drawImage(img, pos.x, pos.y, selectedSquare.getWidth(), selectedSquare.getHeight(), this);
+                            }
                         }
                     }
                 }
@@ -231,6 +247,7 @@ public class UI {
         executor.scheduleAtFixedRate(() -> {
 
             if (redCountdown > 0) {
+//                System.out.println("doing red countdown");
                 redCountdown -= 1;
                 if (redCountdown == 0) {
                     mainPanel.repaint();
