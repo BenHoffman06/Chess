@@ -5,10 +5,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public class Main {
 
@@ -18,6 +15,8 @@ public class Main {
 
     // Moves
     public static ArrayList<Move> moves = new ArrayList<>();
+
+    public static boolean isWhitesMove = true;
 
     // Square names
     public static String[] squareName = {
@@ -140,7 +139,7 @@ public class Main {
             location++;
         }
 
-        UI.mainPanel.repaint();
+        UI.repaint();
     }
 
     /**
@@ -148,25 +147,60 @@ public class Main {
      * Updates moveNotPossible if requested move is impossible
      */
     public static void tryMovePiece(Square square1, Square square2) {
-        boolean canMakeMove = (accessibleSquaresOf(square1).contains(square2.index));
 
+        boolean canMakeMove = (accessibleSquaresOf(square1, board, true).contains(square2.index));
         if (canMakeMove) {
-//            System.out.println("Calling movePiece");
+            // Make and display move
             String moveNotation = movePiece(square1, square2);
-            UI.mainPanel.repaint();
-            int moveNumber = moves.size() + 1;
-            moves.add(new Move(moveNumber, moveNotation, square1, square2));
+            UI.repaint();
+
+            // Add it to move list
+            moves.add(new Move(moveNotation, square1, square2));
         }
         else {
-//            System.out.println("Illegal Move");
-            moveNotPossible = true;
-            UI.selectedSquare = null;
-
-            UI.redCountdown = 25;
-            UI.redSquare = square2;
-
-            UI.mainPanel.repaint();
+            handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
+            System.out.println(accessibleMoves);
         }
+    }
+
+    public static void handleInvalidMoveTo(Square s) {
+        moveNotPossible = true;
+        UI.selectedSquare = null;
+
+        UI.redCountdown = 25;
+        UI.redSquare = s;
+
+        s.repaint();
+    }
+
+    public static void handleInvalidMoveTo(Square s, String message) {
+        System.out.println(message);
+        handleInvalidMoveTo(s);
+    }
+
+    public static boolean isKingInCheck(Square[] board, boolean isWhite) {
+        byte king = (byte) (isWhite ? WHITE_KING : BLACK_KING);
+        Square kingSquare = null;
+
+        // Find king position
+        for (Square s : board) {
+            if (s.piece == king) {
+                kingSquare = s;
+                break;
+            }
+        }
+        if (kingSquare == null) return false;
+
+        // Check all opposing pieces
+        for (Square s : board) {
+            if (s.piece * king < 0) { // Enemy piece
+                ArrayList<Byte> moves = accessibleSquaresOf(s, board, false);
+                if (moves.contains(kingSquare.index)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -174,20 +208,18 @@ public class Main {
      * @Returns chess notation for move
      */
     public static String movePiece(Square square1, Square square2) {
+        // Update variables
+        isWhitesMove = !isWhitesMove;
+        UI.selectedSquare = null;
+
         // Setup chess notation
         String movingPieceStr = String.valueOf(square1.getPieceChar());
         String takesString = "";
-        String square2Name = squareName[square2.index];
-        String toLocation;
+        String toLocation = squareName[square2.index];
 
-        switch (square1.piece) {
-            case WHITE_PAWN, BLACK_PAWN -> {
-                // Location only is rank
-                toLocation = String.valueOf(square2Name.toCharArray()[1]);
-            }
-            default -> {
-                toLocation = square2Name;
-            }
+        // If pawn move, just use file
+        if (Math.abs(square1.piece) == WHITE_PAWN) {
+            toLocation = String.valueOf(squareName[square2.index].toCharArray()[1]);
         }
 
         if (square2.piece != EMPTY) {
@@ -195,68 +227,63 @@ public class Main {
             takesString = "x";
         }
 
-        UI.selectedSquare = null;
-
         //region Castling
         boolean kingMove = Math.abs(square1.piece) == WHITE_KING;
-        if (kingMove) {
-            System.out.println("Castle :)");
-            // Check if it wasn't just a normal king move
-            if (Math.abs(square2.index - square1.index) > 1) {
+        int distance = Math.abs(square1.index % 8 - square2.index % 8);
 
-                // If doing kingside castle
-                if (square2.index > square1.index) {
-                    // bring rookSquare other side
-                    Square rookSquare = board[square2.index + 1];
-                    Square otherSide = board[square2.index - 1];
-                    otherSide.piece = rookSquare.piece;
-                    rookSquare.piece = EMPTY;
+        // Check king moved and it wasn't just his normal movement
+        if (kingMove && distance > 1) {
 
-                    // Move king
-                    square2.piece = square1.piece;
-                    square1.piece = EMPTY;
+            // If doing kingside castle
+            if (square2.index > square1.index) {
+                // bring rookSquare other side
+                Square rookSquare = board[square2.index + 1];
+                Square otherSide = board[square2.index - 1];
+                otherSide.piece = rookSquare.piece;
+                rookSquare.piece = EMPTY;
 
-                    // Update
-                    System.out.println(rookSquare);
-                    rookSquare.repaint();
-                    otherSide.repaint();
+                // Move king
+                square2.piece = square1.piece;
+                square1.piece = EMPTY;
 
-                    // Return notation
-                    return "O-O";
-                }
+                // Update
+                System.out.println(rookSquare);
+                rookSquare.repaint();
+                otherSide.repaint();
 
-                // If doing queenside castle
-                else {
-                    // bring rook other side
-                    Square rookSquare = board[square2.index - 2];
-                    Square otherSide = board[square2.index + 1];
-                    otherSide.piece = rookSquare.piece;
-                    rookSquare.piece = EMPTY;
+                // Return notation
+                return "O-O";
+            }
 
-                    // Move kind
-                    square2.piece = square1.piece;
-                    square1.piece = EMPTY;
+            // If doing queenside castle
+            else {
+                // bring rook other side
+                Square rookSquare = board[square2.index - 2];
+                Square otherSide = board[square2.index + 1];
+                otherSide.piece = rookSquare.piece;
+                rookSquare.piece = EMPTY;
 
-                    // Update
-                    rookSquare.repaint();
-                    otherSide.repaint();
+                // Move kind
+                square2.piece = square1.piece;
+                square1.piece = EMPTY;
 
-                    // Return notation
-                    return "O-O-O";
-                }
+                // Update
+                rookSquare.repaint();
+                otherSide.repaint();
+
+                // Return notation
+                return "O-O-O";
             }
         }
+
         //endregion
         else {
             square2.piece = square1.piece;
             square1.piece = EMPTY;
         }
 
-        String moveNotation = movingPieceStr + takesString + toLocation;
-
-        return moveNotation;
+        return movingPieceStr + takesString + toLocation;
     }
-
 
     static class Square extends JPanel {
         private final Color color;
@@ -267,6 +294,12 @@ public class Main {
             this.color = color;
             this.index = index;
             this.piece = EMPTY;
+        }
+
+        public Square(Square s) {
+            this.color = s.color;
+            this.piece = s.piece;
+            this.index = s.index;
         }
 
         public void setPiece(byte piece) {
@@ -322,7 +355,6 @@ public class Main {
 
         @Override
         protected void paintComponent(Graphics g) {
-//            System.out.println("Square.paintComponent called for location: " + this.location + ", selectedSquare: " + (UI.selectedSquare != null ? UI.selectedSquare.location : "null") + ", accessibleMoves: " + accessibleMoves); // ADDED DEBUG PRINT
 
             super.paintComponent(g);
 
@@ -346,306 +378,264 @@ public class Main {
         }
     }
 
-
-    public static void main(String[] args) {
-        mainPanel = UI.handleGUI();
-        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-    }
-
     //region Piece Logic
-    public static ArrayList<Byte> accessibleSquaresOf(Square square) {
-//        System.out.println(++timesAccessibleSquaresOfCalled);
-        ArrayList<Byte> accessibleSquares = new ArrayList<>();
+    public static ArrayList<Byte> accessibleSquaresOf(Square square, Square[] board, boolean checkForChecks) {
+        ArrayList<Byte> validMoves = new ArrayList<>();
         byte piece = square.piece;
         byte location = square.index;
 
-        int squaresUp = location / 8;
-        int squaresLeft = location % 8;
-        int squaresDown = 7 - squaresUp;
-        int squaresRight = 7 - squaresLeft;
+        // Get all potential moves without considering checks
+        ArrayList<Byte> rawMoves = getRawMoves(square, board);
+
+        if (checkForChecks) {
+            // Verify each move doesn't leave king in check
+            for (Byte move : rawMoves) {
+                Square[] simulatedBoard = copyBoard(board);
+                makeMove(simulatedBoard, location, move);
+                if (!isKingInCheck(simulatedBoard, piece > 0)) {
+                    validMoves.add(move);
+                }
+            }
+        } else {
+            validMoves.addAll(rawMoves);
+        }
+
+        return validMoves;
+    }
+
+    private static ArrayList<Byte> getRawMoves(Square square, Square[] board) {
+        ArrayList<Byte> moves = new ArrayList<>();
+        byte piece = square.piece;
+        byte location = square.index;
+
+
+        int squaresLeft = location % 8;          // Squares to the left edge
+        int squaresRight = 7 - squaresLeft;      // Squares to the right edge
 
         switch (piece) {
             case WHITE_PAWN -> {
-                // Pawn has no moves if on 8th rank
+                // Pawn has no moves if on the 8th rank (for white)
                 if (location <= 7) {
-                    return accessibleSquares;
+                    return moves;
                 }
 
-                // If no pieces in front of pawn, it can move forward
+                // If no pieces are in front of the pawn, it can move forward
                 Square upperSquare = board[location - 8];
                 if (upperSquare.isEmpty()) {
-                    accessibleSquares.add(upperSquare.index);
+                    moves.add((byte) (location - 8));
 
-                    // Pawn can also move up two if on 2nd rank
-                    if (location / 8 == 6) {
-                        accessibleSquares.add((byte) (location - 16));
+                    // Pawn can also move two squares if on the 2nd rank and no piece on the 4th rank
+                    if (location / 8 == 6 && board[location - 16].isEmpty()) {
+                        moves.add((byte) (location - 16));
                     }
                 }
 
-                // If not on 1st file and piece to upper left:
-                // Can move upper left
-                boolean onFirstFile = (location % 8 == 0);
-                if (!onFirstFile) {
+                // If not on the 1st file and there's an enemy piece to the upper left:
+                // The pawn can capture diagonally to the upper left
+                if (squaresLeft > 0) {
                     Square upperLeftSquare = board[location - 9];
-                    if (upperLeftSquare.piece  < 0) {
-                        accessibleSquares.add(upperLeftSquare.index);
+                    if (upperLeftSquare.piece < 0) { // Enemy piece (black)
+                        moves.add((byte) (location - 9));
                     }
                 }
 
-                // If not on 8th file and piece to upper right:
-                // Can move upper right
-                boolean onLastFile = (location % 8 == 7);
-                if (!onLastFile) {
+                // If not on the 8th file and there's an enemy piece to the upper right:
+                // The pawn can capture diagonally to the upper right
+                if (squaresRight > 0) {
                     Square upperRightSquare = board[location - 7];
-                    if (upperRightSquare.piece < 0) {
-                        accessibleSquares.add(upperRightSquare.index);
+                    if (upperRightSquare.piece < 0) { // Enemy piece (black)
+                        moves.add((byte) (location - 7));
                     }
                 }
             }
             case BLACK_PAWN -> {
-                // Pawn has no moves if on first rank
-                if (location > 55) {
-                    return accessibleSquares;
+                // Pawn has no moves if on the 1st rank (for black)
+                if (location >= 56) {
+                    return moves;
                 }
 
-                // If no pieces below pawn, it can move down
+                // If no pieces are below the pawn, it can move down
                 Square lowerSquare = board[location + 8];
                 if (lowerSquare.isEmpty()) {
-                    accessibleSquares.add(lowerSquare.index);
+                    moves.add((byte) (location + 8));
 
-                    // Pawn can also move up two if on 7th rank
-                    if (location / 8 == 1) {
-                        accessibleSquares.add((byte) (location + 16));
+                    // Pawn can also move two squares if on the 7th rank and no piece on the 5th rank
+                    if (location / 8 == 1 && board[location + 16].isEmpty()) {
+                        moves.add((byte) (location + 16));
                     }
                 }
 
-                // If not on 1st file and piece to lower left:
-                // Can move down-left
-                boolean onFirstFile = (location % 8 == 0);
-                if (!onFirstFile) {
+                // If not on the 1st file and there's an enemy piece to the lower left:
+                // The pawn can capture diagonally to the lower left
+                if (squaresLeft > 0) {
                     Square lowerLeftSquare = board[location + 7];
-                    if (lowerLeftSquare.piece > 0) {
-                        accessibleSquares.add(lowerLeftSquare.index);
+                    if (lowerLeftSquare.piece > 0) { // Enemy piece (white)
+                        moves.add((byte) (location + 7));
                     }
                 }
 
-                // If not on 8th file and piece to lower right:
-                // Can move down-right
-                boolean onLastFile = (location % 8 == 7);
-                if (!onLastFile) {
+                // If not on the 8th file and there's an enemy piece to the lower right:
+                // The pawn can capture diagonally to the lower right
+                if (squaresRight > 0) {
                     Square lowerRightSquare = board[location + 9];
-                    if (lowerRightSquare.piece > 0) {
-                        accessibleSquares.add(lowerRightSquare.index);
+                    if (lowerRightSquare.piece > 0) { // Enemy piece (white)
+                        moves.add((byte) (location + 9));
                     }
                 }
             }
             case WHITE_KNIGHT, BLACK_KNIGHT -> {
-                // lu
-                if (squaresLeft >= 2 && squaresUp >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location - 10].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location - 10));
-                    }
-                }
-                // ul
-                if (squaresUp >= 2 && squaresLeft >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location - 17].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location - 17));
-                    }
-                }
-                // ur
-                if (squaresUp >= 2 && squaresRight >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location - 15].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location - 15));
-                    }
-                }
-                // ru
-                if (squaresRight >= 2 && squaresUp >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location - 6].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location - 6));
-                    }
-                }
-                // rd
-                if (squaresRight >= 2 && squaresDown >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location + 10].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 10));
-                    }
-                }
-                // dr
-                if (squaresDown >= 2 && squaresRight >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location + 17].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 17));
-                    }
-                }
-                // dl
-                if (squaresDown >= 2 && squaresLeft >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location + 15].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 15));
-                    }
-                }
-                // ld
-                if (squaresLeft >= 2 && squaresDown >= 1) {
-                    // If they are opposite colors or it is empty
-                    if (board[location + 6].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 6));
+                int[] knightMoves = {-17, -15, -10, -6, 6, 10, 15, 17};
+
+                // For all possible knight moves
+                for (int move : knightMoves) {
+
+                    int target = location + move;
+
+                    // If target is on the board
+                    if (target >= 0 && target < 64) { // Ensure the target is on the board
+                        int fileDiff = Math.abs((location % 8) - (target % 8)); // Horizontal distance
+                        int rankDiff = Math.abs((location / 8) - (target / 8)); // Vertical distance
+
+                        // And if move is in L-shape
+                        if (fileDiff + rankDiff == 3) {
+
+                            // And if the target square is empty or has an enemy piece
+                            if ((board[target].piece * piece <= 0)) {
+
+                                // Add it to moves
+                                moves.add((byte) target);
+                            }
+                        }
                     }
                 }
             }
             case WHITE_BISHOP, BLACK_BISHOP, WHITE_ROOK, BLACK_ROOK, WHITE_QUEEN, BLACK_QUEEN -> {
-                boolean stop;
-                int i;
+                int[][] directions;
 
-                if (Math.abs(piece) == WHITE_ROOK || Math.abs(piece) == WHITE_QUEEN) {
-                    // Left
-                    stop = false; i = 1;
-                    while ((i <= squaresLeft) && !stop) {
-                        byte newLocation = (byte) (location + (i++ * -1));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
-                    }
-
-                    // Right
-                    stop = false; i = 1;
-                    while ((i <= squaresRight) && !stop) {
-                        byte newLocation = (byte) (location + (i++));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
-                    }
-
-                    // Up                    }
-                    stop = false; i = 1;
-                    while ((i <= squaresUp) && !stop) {
-                        byte newLocation = (byte) (location + (i++ * -8));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
-                    }
-
-                    // Down
-                    stop = false; i = 1;
-                    while ((i <= squaresDown) && !stop) {
-                        byte newLocation = (byte) (location + (i++ * 8));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
-                    }
+                // Rook directions
+                if (Math.abs(piece) == WHITE_ROOK) {
+                    directions = new int[][]{{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+                }
+                // Bishop directions
+                else if (Math.abs(piece) == WHITE_BISHOP) {
+                    directions = new int[][]{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+                }
+                // Queen directions
+                else {
+                    directions = new int[][]{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
                 }
 
-                if (Math.abs(piece) == WHITE_BISHOP || Math.abs(piece) == WHITE_QUEEN) {
-                    // Left-Up
-                    stop = false; i = 1;
-                    while ((i <= Math.min(squaresLeft, squaresUp)) && !stop) {
-                        byte newLocation = (byte) (location + (-9 * i++));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
-                    }
+                // For each direction, move until the edge of the board or a blocking piece
+                for (int[] dir : directions) {
+                    int dx = dir[0]; // Change in file
+                    int dy = dir[1]; // Change in rank
+                    int steps = 1;
 
-                    // Right-Up
-                    stop = false; i = 1;
-                    while ((i <= Math.min(squaresRight, squaresUp)) && !stop) {
-                        byte newLocation = (byte) (location + (-7 * i++));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
-                    }
+                    while (true) {
+                        int newX = (location % 8) + dx * steps;
+                        int newY = (location / 8) + dy * steps;
 
-                    // Right-Down
-                    stop = false; i = 1;
-                    while ((i <= Math.min(squaresRight, squaresDown)) && !stop) {
-                        byte newLocation = (byte) (location + (9 * i++));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
-                    }
+                        // Stop if we go off the board
+                        if (newX < 0 || newX >= 8 || newY < 0 || newY >= 8) {
+                            break;
+                        }
+                        int target = newY * 8 + newX;
 
-                    // Left-Down
-                    stop = false; i = 1;
-                    while ((i <= Math.min(squaresLeft, squaresDown)) && !stop) {
-                        byte newLocation = (byte) (location + (7 * i++));
-                        stop = tryAdd(piece, newLocation, accessibleSquares);
+                        // If the square is empty, add it to moves
+                        if (board[target].isEmpty()) {
+                            moves.add((byte) target);
+                        }
+                        // If the square has an enemy piece, add it and stop
+                        else if (board[target].piece * piece < 0) {
+                            moves.add((byte) target);
+                            break;
+                        }
+                        // If the square has a friendly piece, stop
+                        else {
+                            break;
+                        }
+                        steps++;
                     }
                 }
             }
             case WHITE_KING, BLACK_KING -> {
-                //region Normal Moves
-                if (squaresLeft > 0) {
-                    // If the piece on that square is not the same color (then either empty or black)
-                    if (board[location - 1].piece * piece <= 0) {
-                        // Add it to accessible squares
-                        accessibleSquares.add((byte) (location - 1));
-                    }
-                }
-                if (squaresRight > 0) {
-                    if (board[location + 1].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 1));
-                    }
-                }
-                if (squaresUp > 0) {
-                    if (board[location - 8].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location - 8));
-                    }
-                }
-                if (squaresDown > 0) {
-                    if (board[location + 8].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 8));
-                    }
-                }
-                if (squaresLeft > 0 && squaresUp > 0) {
-                    if (board[location - 9].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location - 9));
-                    }
-                }
-                if (squaresRight > 0 && squaresUp > 0) {
-                    if (board[location - 7].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location - 7));
-                    }
-                }
-                if (squaresRight > 0 && squaresDown > 0) {
-                    if (board[location + 9].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 9));
-                    }
-                }
-                if (squaresRight > 0 && squaresDown > 0) {
-                    if (board[location + 7].piece * piece <= 0) {
-                        accessibleSquares.add((byte) (location + 7));
-                    }
-                }
-                //endregion
+                int[] kingMoves = {-9, -8, -7, -1, 1, 7, 8, 9};
 
-                // Castling Check
-                boolean kingMoved = square.hasChanged();
-                boolean rightRookMoved = true;
-                boolean leftRookMoved = true;
-                if (!kingMoved) {
-                    rightRookMoved = board[location + 3].hasChanged();
-                    leftRookMoved = board[location - 4].hasChanged();
+                // For all possible king moves
+                for (int move : kingMoves) {
+                    int target = location + move;
+
+                    // If target is on the board
+                    if (target >= 0 && target < 64) {
+                        int fileDiff = Math.abs((location % 8) - (target % 8)); // Horizontal distance
+                        int rankDiff = Math.abs((location / 8) - (target / 8)); // Vertical distance
+
+                        // And if the move is only 1 square away
+                        if (fileDiff <= 1 && rankDiff <= 1) {
+
+                            // And if the target square is empty or has an enemy piece
+                            if ((board[target].piece * piece <= 0)) {
+
+                                // Add to moves
+                                moves.add((byte) target);
+                            }
+                        }
+                    }
                 }
 
-                boolean rightSpaceIsOpen = (board[location + 1].isEmpty() && board[location + 2].isEmpty());
-                boolean leftSpaceIsOpen = (board[location - 1].isEmpty() && board[location - 2].isEmpty() && board[location - 3].isEmpty());
+                // If the king hasn't moved
+                if (!square.hasChanged()) {
 
-                // Right Side
-                if (!kingMoved && !rightRookMoved && rightSpaceIsOpen) {
-                    accessibleSquares.add((byte) (location + 2));
-                }
+                    // Kingside castling:
 
-                // Left Side
-                if (!kingMoved && !leftRookMoved && leftSpaceIsOpen) {
-                    accessibleSquares.add((byte) (location - 2));
+                    // If there is space
+                    if (board[location + 1].isEmpty() && board[location + 2].isEmpty()) {
+
+                        // And rook has not moved
+                        if (!board[location + 3].hasChanged()) {
+
+                            // Add to moves
+                            moves.add((byte) (location + 2));
+                        }
+                    }
+
+                    // Queenside castling:
+
+                    // If there is space
+                    if (board[location - 1].isEmpty() && board[location - 2].isEmpty() && board[location - 3].isEmpty()) {
+
+                        // And rook has not moved
+                        if (!board[location - 4].hasChanged())  {
+
+                            // Add to moves
+                            moves.add((byte) (location - 2));
+                        }
+                    }
                 }
             }
         }
-//        System.out.println("accessibleSquaresOf for piece: " + square.piece + " at location: " + square.location + " returning: " + accessibleSquares); // ADDED
 
-        return accessibleSquares;
+        return moves;
     }
     //endregion
 
-    public static boolean tryAdd(byte piece, byte newLocation, ArrayList<Byte> accessibleSquares) {
-        // Stop if new square is occupied
-        if (!board[newLocation].isEmpty()) {
-            // If both pieces are different add it
-            if (board[newLocation].piece * piece < 0) {
-                accessibleSquares.add(newLocation);
-            }
-            return true;
+    //region Helper methods
+    private static Square[] copyBoard(Square[] original) {
+        Square[] copy = new Square[64];
+        for (int i = 0; i < original.length; i++) {
+            copy[i] = new Square(original[i]);
         }
-        accessibleSquares.add(newLocation);
-        return false;
+        return copy;
+    }
+
+    private static void makeMove(Square[] board, byte from, byte to) {
+        board[to].piece = board[from].piece;
+        board[from].piece = EMPTY;
+    }
+    //endregion
+
+    public static void main(String[] args) {
+        mainPanel = UI.handleGUI();
+        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
     }
 }

@@ -10,4 +10,11 @@ public class Move {
         this.square1 = square1;
         this.square2 = square2;
     }
+
+    public Move(String notation, Main.Square square1, Main.Square square2) {
+        this.number = Main.moves.size() + 1;
+        this.notation = notation;
+        this.square1 = square1;
+        this.square2 = square2;
+    }
 }

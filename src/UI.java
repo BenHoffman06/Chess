@@ -79,59 +79,71 @@ public class UI {
     }
 
     private static void handleSquareSelection(Main.Square s) {
+
+        // If no square is previously selected
         if (selectedSquare == null) {
+
             // Select this square only if it has a piece
             if (s.piece != Main.EMPTY) {
-                selectedSquare = s;
+
+                // That piece has to be the color of the person whose turn it is to move
+                boolean isRightColor = (Main.isWhitesMove && s.piece > 0) || (!Main.isWhitesMove && s.piece < 0);
+                if (isRightColor) {
+                    selectedSquare = s;
+                }
             }
         } else {
-            if (selectedSquare != s) {
-                // If the selected square has a piece, move it to this square
+
+            // Clicking the same square again: deselect
+            if (selectedSquare == s) {
+                selectedSquare = null;
+            }
+            // If clicking new square
+            else {
+
+                // If previously selected square has a piece
                 if (selectedSquare.piece != Main.EMPTY) {
+
+                    // Try to move to new square
                     Main.tryMovePiece(selectedSquare, s);
                 }
                 // Clear selection after move or if selected square was empty
                 selectedSquare = null;
-            } else {
-                // Clicking the same square again: deselect
-                selectedSquare = null;
             }
         }
-        mainPanel.repaint();
+        repaint();
     }
     //endregion
 
     public static void handleCapture(byte piece) {
-        playCaptureSound();
+        playSound("sounds/Capture.wav");
     }
 
     //region GUI and MouseListeners Setup and Rendering
     public static JPanel handleGUI() {
         System.setProperty("sun.java2d.opengl", "true");
 
-        // Mouse handler for square selection and dragging
         MouseAdapter mouseHandler = new MouseAdapter() {
+
             @Override
             public void mousePressed(MouseEvent e) {
                 Main.Square clickedSquare = getSquareAt(e.getPoint());
-//                System.out.println("Mouse Pressed on Square: " + (clickedSquare != null ? clickedSquare.location : "null")); // ADDED
+
                 if (clickedSquare != null && clickedSquare.piece != Main.EMPTY) {
                     handleSquareSelection(clickedSquare);
-//                    System.out.println("Piece selected on Square: " + clickedSquare.location + ", Piece type: " + clickedSquare.piece); // ADDED
 
                     // Calculate offset
                     offsetX = e.getX() - clickedSquare.getX();
                     offsetY = e.getY() - clickedSquare.getY();
                 } else {
-//                    System.out.println("No piece selected or clicked outside board."); // ADDED
-                    handleSquareSelection(clickedSquare); // Still call handleSquareSelection even if no piece (to handle deselection)
+                    handleSquareSelection(clickedSquare); // Call handleSquareSelection anyways to handle deselection
                 }
 
                 if (selectedSquare == null || selectedSquare.isEmpty()) {
                     Main.accessibleMoves.clear();
                 }
                 else {
-                    Main.accessibleMoves = Main.accessibleSquaresOf(UI.selectedSquare);
+                    Main.accessibleMoves = Main.accessibleSquaresOf(UI.selectedSquare, Main.board, true);
                 }
             }
 
@@ -140,7 +152,7 @@ public class UI {
                 dragX = e.getX();
                 dragY = e.getY();
                 beingDragged = true;
-                mainPanel.repaint();
+                repaint();
             }
 
             @Override
@@ -184,8 +196,8 @@ public class UI {
 
                 // Draw dragging pieces
                 if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && UI.isDragging(selectedSquare)) {
-                    int x = dragX - offsetX; // Use the offset here
-                    int y = dragY - offsetY;
+                    int x = dragX - selectedSquare.getWidth() / 2;
+                    int y = dragY - selectedSquare.getWidth() / 2;
                     BufferedImage img = pieceImages.get(selectedSquare.piece);
                     g.drawImage(img, x, y, selectedSquare.getWidth(), selectedSquare.getHeight(), this);
                 }
@@ -250,7 +262,7 @@ public class UI {
 //                System.out.println("doing red countdown");
                 redCountdown -= 1;
                 if (redCountdown == 0) {
-                    mainPanel.repaint();
+                    repaint();
                 }
             }
         }, 0, 10, TimeUnit.MILLISECONDS);
@@ -259,6 +271,10 @@ public class UI {
         frame.setVisible(true);
 
         return mainPanel;
+    }
+
+    public static void repaint() {
+        mainPanel.repaint();
     }
 
     private static void resizeSquares(JPanel panel) {
@@ -293,8 +309,8 @@ public class UI {
     }
 
 
-    //region Sound Effects
-    private static void playCaptureSound() {
+
+    private static void playSound(String filename) {
         // thanks DeepSeek for uh my code
 
         // sound from https://github.com/lichess-org/lila/blob/master/public/sound/standard/Capture.mp3
@@ -303,7 +319,7 @@ public class UI {
         new Thread(() -> {
             try {
                 // Load the WAV file from resources
-                InputStream soundFile = Main.class.getClassLoader().getResourceAsStream("sounds/Capture.wav");
+                InputStream soundFile = Main.class.getClassLoader().getResourceAsStream(filename);
                 if (soundFile == null) {
                     System.err.println("Could not find sound file!");
                     return;
@@ -324,5 +340,4 @@ public class UI {
             }
         }).start();
     }
-    //endregion
 }
