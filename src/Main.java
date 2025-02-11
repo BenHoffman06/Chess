@@ -75,72 +75,8 @@ public class Main {
     }
 
     //endregion
+
     public static ArrayList<Byte> accessibleMoves = new ArrayList<>();
-    public static boolean moveNotPossible = false;
-
-    public static void setBoardFromFEN(String fen) {
-        byte location = 0, piece_type;
-        for (char c : fen.toCharArray()) {
-            // Translate characters to pieces
-            switch (c) {
-                case 'p':
-                    piece_type = BLACK_PAWN;
-                    break;
-                case 'n':
-                    piece_type = BLACK_KNIGHT;
-                    break;
-                case 'b':
-                    piece_type = BLACK_BISHOP;
-                    break;
-                case 'r':
-                    piece_type = BLACK_ROOK;
-                    break;
-                case 'q':
-                    piece_type = BLACK_QUEEN;
-                    break;
-                case 'k':
-                    piece_type = BLACK_KING;
-                    break;
-                case 'P':
-                    piece_type = WHITE_PAWN;
-                    break;
-                case 'N':
-                    piece_type = WHITE_KNIGHT;
-                    break;
-                case 'B':
-                    piece_type = WHITE_BISHOP;
-                    break;
-                case 'R':
-                    piece_type = WHITE_ROOK;
-                    break;
-                case 'Q':
-                    piece_type = WHITE_QUEEN;
-                    break;
-                case 'K':
-                    piece_type = WHITE_KING;
-                    break;
-                case '/':
-                    continue;
-                case '1':
-                case '2':
-                case '3':
-                case '4':
-                case '5':
-                case '6':
-                case '7':
-                case '8':
-                    location += (byte) Character.getNumericValue(c);
-                    continue;
-                default:
-                    throw new RuntimeException("Error in FEN String");
-            }
-
-            board[location].setPiece(piece_type);
-            location++;
-        }
-
-        UI.repaint();
-    }
 
     /**
      * Attempts to call movePiece(), <br>
@@ -158,56 +94,20 @@ public class Main {
             moves.add(new Move(moveNotation, square1, square2));
         }
         else {
-            handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
+            UI.handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
             System.out.println(accessibleMoves);
         }
     }
 
-    public static void handleInvalidMoveTo(Square s) {
-        moveNotPossible = true;
-        UI.selectedSquare = null;
-
-        UI.redCountdown = 25;
-        UI.redSquare = s;
-
-        s.repaint();
-    }
-
-    public static void handleInvalidMoveTo(Square s, String message) {
-        System.out.println(message);
-        handleInvalidMoveTo(s);
-    }
-
-    public static boolean isKingInCheck(Square[] board, boolean isWhite) {
-        byte king = (byte) (isWhite ? WHITE_KING : BLACK_KING);
-        Square kingSquare = null;
-
-        // Find king position
-        for (Square s : board) {
-            if (s.piece == king) {
-                kingSquare = s;
-                break;
-            }
-        }
-        if (kingSquare == null) return false;
-
-        // Check all opposing pieces
-        for (Square s : board) {
-            if (s.piece * king < 0) { // Enemy piece
-                ArrayList<Byte> moves = accessibleSquaresOf(s, board, false);
-                if (moves.contains(kingSquare.index)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
     /**
      * Move piece from square1 to square2
      * @Returns chess notation for move
      */
     public static String movePiece(Square square1, Square square2) {
+        byte from = square1.index;
+        byte to = square2.index;
+
         // Update variables
         isWhitesMove = !isWhitesMove;
         UI.selectedSquare = null;
@@ -230,12 +130,15 @@ public class Main {
         //region Castling
         boolean kingMove = Math.abs(square1.piece) == WHITE_KING;
         int distance = Math.abs(square1.index % 8 - square2.index % 8);
+        boolean isCastlingMove = false;
 
         // Check king moved and it wasn't just his normal movement
         if (kingMove && distance > 1) {
 
             // If doing kingside castle
             if (square2.index > square1.index) {
+                isCastlingMove = true;
+
                 // bring rookSquare other side
                 Square rookSquare = board[square2.index + 1];
                 Square otherSide = board[square2.index - 1];
@@ -257,6 +160,8 @@ public class Main {
 
             // If doing queenside castle
             else {
+                isCastlingMove = true;
+
                 // bring rook other side
                 Square rookSquare = board[square2.index - 2];
                 Square otherSide = board[square2.index + 1];
@@ -277,12 +182,60 @@ public class Main {
         }
 
         //endregion
-        else {
-            square2.piece = square1.piece;
-            square1.piece = EMPTY;
+
+        //region Handle promotions
+        boolean isWhitePromotion = board[from].piece == WHITE_PAWN && to < 8;
+        boolean isBlackPromotion = board[from].piece == BLACK_PAWN && to >= 56;
+        if (isWhitePromotion) {
+            board[to].piece = WHITE_QUEEN;
+        }
+        else if (isBlackPromotion) {
+            board[to].piece = BLACK_QUEEN;
+        }
+        //endregion
+
+        //region Handle en-passant
+
+        // isEnPassant if pawn is moving diagonally and square2 is empty
+        boolean isPawnMove = Math.abs(square1.piece) == WHITE_PAWN;
+        boolean isDiagonal = Math.abs(from - to) % 8 != 0;
+        boolean isEnPassant = square2.isEmpty() && isPawnMove && isDiagonal;
+
+        if (isEnPassant) {
+            // Remove piece from behind square2
+            Square behind = board[square2.index + Integer.signum(square1.piece) * 8];
+            behind.piece = EMPTY;
+            takesString = "x";
+        }
+        //endregion
+
+        // If a non-promotion and non-castling move, update new square
+        if (!isCastlingMove && !isBlackPromotion && !isWhitePromotion) {
+            board[to].piece = board[from].piece;
         }
 
+        // Remove piece which moved from its original square
+        board[from].piece = EMPTY;
+
+
         return movingPieceStr + takesString + toLocation;
+    }
+
+    private static void makeMove(Square[] board, byte from, byte to) {
+        //region Handle promotions
+        if (board[from].piece == WHITE_PAWN && to < 8) {
+            board[to].piece = WHITE_QUEEN;
+        }
+        else if (board[from].piece == BLACK_PAWN && to >= 56) {
+            board[to].piece = BLACK_QUEEN;
+        }
+        //endregion
+        // If a non-promotion move
+        else {
+            board[to].piece = board[from].piece;
+        }
+        // Remove piece which moved from its original square
+        board[from].piece = EMPTY;
     }
 
     static class Square extends JPanel {
@@ -404,7 +357,7 @@ public class Main {
     }
 
     private static ArrayList<Byte> getRawMoves(Square square, Square[] board) {
-        ArrayList<Byte> moves = new ArrayList<>();
+        ArrayList<Byte> byteMoves = new ArrayList<>();
         byte piece = square.piece;
         byte location = square.index;
 
@@ -416,70 +369,130 @@ public class Main {
             case WHITE_PAWN -> {
                 // Pawn has no moves if on the 8th rank (for white)
                 if (location <= 7) {
-                    return moves;
+                    return byteMoves;
                 }
 
                 // If no pieces are in front of the pawn, it can move forward
                 Square upperSquare = board[location - 8];
                 if (upperSquare.isEmpty()) {
-                    moves.add((byte) (location - 8));
+                    byteMoves.add((byte) (location - 8));
 
                     // Pawn can also move two squares if on the 2nd rank and no piece on the 4th rank
                     if (location / 8 == 6 && board[location - 16].isEmpty()) {
-                        moves.add((byte) (location - 16));
+                        byteMoves.add((byte) (location - 16));
                     }
                 }
 
-                // If not on the 1st file and there's an enemy piece to the upper left:
-                // The pawn can capture diagonally to the upper left
+                // If not on the 1st file
                 if (squaresLeft > 0) {
                     Square upperLeftSquare = board[location - 9];
-                    if (upperLeftSquare.piece < 0) { // Enemy piece (black)
-                        moves.add((byte) (location - 9));
+                    Square leftSquare = board[location - 1];
+
+                    // And if there's a black piece to the upper left:
+                    if (upperLeftSquare.piece < 0) {
+
+                        // The pawn can capture diagonally to the upper left
+                        byteMoves.add((byte) (location - 9));
+                    }
+
+                    // If there's a black pawn to the left
+                    if (leftSquare.piece == BLACK_PAWN && moves.size() > 1) {
+
+                        // And if the pawn just moved 16 indices
+                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == leftSquare) {
+
+                            // The pawn can capture diagonally to the upper left
+                            byteMoves.add((byte) (location - 9));
+                        }
                     }
                 }
 
-                // If not on the 8th file and there's an enemy piece to the upper right:
-                // The pawn can capture diagonally to the upper right
+                // If not on the 8th file
                 if (squaresRight > 0) {
                     Square upperRightSquare = board[location - 7];
-                    if (upperRightSquare.piece < 0) { // Enemy piece (black)
-                        moves.add((byte) (location - 7));
+                    Square rightSquare = board[location + 1];
+
+                    // And if there's a black piece to the upper right:
+                    if (upperRightSquare.piece < 0) {
+
+                        // The pawn can capture diagonally to the upper right
+                        byteMoves.add((byte) (location - 7));
+                    }
+
+                    // If there's a black pawn to the right
+                    if (rightSquare.piece == BLACK_PAWN && moves.size() > 1) {
+
+                        // And if the pawn just moved 16 indices
+                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == rightSquare) {
+
+                            // The pawn can capture diagonally to the upper right
+                            byteMoves.add((byte) (location - 7));
+                        }
                     }
                 }
             }
             case BLACK_PAWN -> {
                 // Pawn has no moves if on the 1st rank (for black)
                 if (location >= 56) {
-                    return moves;
+                    return byteMoves;
                 }
 
                 // If no pieces are below the pawn, it can move down
                 Square lowerSquare = board[location + 8];
                 if (lowerSquare.isEmpty()) {
-                    moves.add((byte) (location + 8));
+                    byteMoves.add((byte) (location + 8));
 
                     // Pawn can also move two squares if on the 7th rank and no piece on the 5th rank
                     if (location / 8 == 1 && board[location + 16].isEmpty()) {
-                        moves.add((byte) (location + 16));
+                        byteMoves.add((byte) (location + 16));
                     }
                 }
 
-                // If not on the 1st file and there's an enemy piece to the lower left:
-                // The pawn can capture diagonally to the lower left
+                // If not on the 1st file
                 if (squaresLeft > 0) {
                     Square lowerLeftSquare = board[location + 7];
-                    if (lowerLeftSquare.piece > 0) { // Enemy piece (white)
-                        moves.add((byte) (location + 7));
+                    Square leftSquare = board[location - 1];
+
+                    // And if there's a white piece to the lower left:
+                    if (lowerLeftSquare.piece > 0) {
+
+                        // The pawn can capture diagonally to the lower left
+                        byteMoves.add((byte) (location + 7));
+                    }
+
+                    // If there's a white pawn to the left
+                    if (leftSquare.piece == WHITE_PAWN && moves.size() > 1) {
+
+                        // And if the pawn just moved 16 indices
+                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == leftSquare) {
+
+                            // The pawn can capture diagonally to the lower left
+                            byteMoves.add((byte) (location + 7));
+                        }
                     }
                 }
 
-                // If not on the 8th file and there's an enemy piece to the lower right:
-                // The pawn can capture diagonally to the lower right
+                // If not on the 8th file
                 if (squaresRight > 0) {
                     Square lowerRightSquare = board[location + 9];
-                    if (lowerRightSquare.piece > 0) { // Enemy piece (white)
-                        moves.add((byte) (location + 9));
+                    Square rightSquare = board[location + 1];
+
+                    // And if there's a white piece to the lower right:
+                    if (lowerRightSquare.piece > 0) {
+
+                        // The pawn can capture diagonally to the lower right
+                        byteMoves.add((byte) (location + 9));
+                    }
+
+                    // If there's a white pawn to the right
+                    if (rightSquare.piece == WHITE_PAWN && moves.size() > 1) {
+
+                        // And if the pawn just moved 16 indices
+                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == rightSquare) {
+
+                            // The pawn can capture diagonally to the lower right
+                            byteMoves.add((byte) (location + 9));
+                        }
                     }
                 }
             }
@@ -503,7 +516,7 @@ public class Main {
                             if ((board[target].piece * piece <= 0)) {
 
                                 // Add it to moves
-                                moves.add((byte) target);
+                                byteMoves.add((byte) target);
                             }
                         }
                     }
@@ -543,11 +556,11 @@ public class Main {
 
                         // If the square is empty, add it to moves
                         if (board[target].isEmpty()) {
-                            moves.add((byte) target);
+                            byteMoves.add((byte) target);
                         }
                         // If the square has an enemy piece, add it and stop
                         else if (board[target].piece * piece < 0) {
-                            moves.add((byte) target);
+                            byteMoves.add((byte) target);
                             break;
                         }
                         // If the square has a friendly piece, stop
@@ -577,7 +590,7 @@ public class Main {
                             if ((board[target].piece * piece <= 0)) {
 
                                 // Add to moves
-                                moves.add((byte) target);
+                                byteMoves.add((byte) target);
                             }
                         }
                     }
@@ -595,7 +608,7 @@ public class Main {
                         if (!board[location + 3].hasChanged()) {
 
                             // Add to moves
-                            moves.add((byte) (location + 2));
+                            byteMoves.add((byte) (location + 2));
                         }
                     }
 
@@ -608,14 +621,14 @@ public class Main {
                         if (!board[location - 4].hasChanged())  {
 
                             // Add to moves
-                            moves.add((byte) (location - 2));
+                            byteMoves.add((byte) (location - 2));
                         }
                     }
                 }
             }
         }
 
-        return moves;
+        return byteMoves;
     }
     //endregion
 
@@ -628,9 +641,93 @@ public class Main {
         return copy;
     }
 
-    private static void makeMove(Square[] board, byte from, byte to) {
-        board[to].piece = board[from].piece;
-        board[from].piece = EMPTY;
+    public static boolean isKingInCheck(Square[] board, boolean isWhite) {
+        byte king = (byte) (isWhite ? WHITE_KING : BLACK_KING);
+        Square kingSquare = null;
+
+        // Find king position
+        for (Square s : board) {
+            if (s.piece == king) {
+                kingSquare = s;
+                break;
+            }
+        }
+        if (kingSquare == null) return false;
+
+        // Check all opposing pieces
+        for (Square s : board) {
+            if (s.piece * king < 0) { // Enemy piece
+                ArrayList<Byte> moves = accessibleSquaresOf(s, board, false);
+                if (moves.contains(kingSquare.index)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static void setBoardFromFEN(String fen) {
+        byte location = 0, piece_type;
+        for (char c : fen.toCharArray()) {
+            // Translate characters to pieces
+            switch (c) {
+                case 'p':
+                    piece_type = BLACK_PAWN;
+                    break;
+                case 'n':
+                    piece_type = BLACK_KNIGHT;
+                    break;
+                case 'b':
+                    piece_type = BLACK_BISHOP;
+                    break;
+                case 'r':
+                    piece_type = BLACK_ROOK;
+                    break;
+                case 'q':
+                    piece_type = BLACK_QUEEN;
+                    break;
+                case 'k':
+                    piece_type = BLACK_KING;
+                    break;
+                case 'P':
+                    piece_type = WHITE_PAWN;
+                    break;
+                case 'N':
+                    piece_type = WHITE_KNIGHT;
+                    break;
+                case 'B':
+                    piece_type = WHITE_BISHOP;
+                    break;
+                case 'R':
+                    piece_type = WHITE_ROOK;
+                    break;
+                case 'Q':
+                    piece_type = WHITE_QUEEN;
+                    break;
+                case 'K':
+                    piece_type = WHITE_KING;
+                    break;
+                case '/':
+                    continue;
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                    location += (byte) Character.getNumericValue(c);
+                    continue;
+                default:
+                    throw new RuntimeException("Error in FEN String");
+            }
+
+            board[location].setPiece(piece_type);
+            location++;
+        }
+
+        UI.repaint();
     }
     //endregion
 

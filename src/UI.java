@@ -16,6 +16,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class UI {
+
+    public static boolean moveNotPossible = false;
+
     //region Constants and Variables
     // Colors
     public static final Color BACKGROUND = Color.decode("#161512");
@@ -118,6 +121,22 @@ public class UI {
     public static void handleCapture(byte piece) {
         playSound("sounds/Capture.wav");
     }
+
+    public static void handleInvalidMoveTo(Main.Square s) {
+        moveNotPossible = true;
+        UI.selectedSquare = null;
+
+        UI.redCountdown = 25;
+        UI.redSquare = s;
+
+        s.repaint();
+    }
+
+    public static void handleInvalidMoveTo(Main.Square s, String message) {
+        System.out.println(message);
+        handleInvalidMoveTo(s);
+    }
+
 
     //region GUI and MouseListeners Setup and Rendering
     public static JPanel handleGUI() {

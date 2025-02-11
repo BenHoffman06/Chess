@@ -17,4 +17,8 @@ public class Move {
         this.square1 = square1;
         this.square2 = square2;
     }
+
+    public int getDistance() {
+        return Math.abs(square1.index - square2.index);
+    }
 }
