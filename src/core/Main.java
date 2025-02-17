@@ -1,38 +1,29 @@
 package core;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.util.*;
 
 import static core.UI.*;
 
 public class Main {
 
-    //region Constants and Variables
-    // Board
+    // Represent chessboard as 1D array of 64 squares
     public static Square[] board = new Square[64];
 
-    // Moves
-    public static ArrayList<Move1> moves = new ArrayList<>();
+    //region Game State
+    public static boolean isWhitesMove = true; // Tracks whose turn it is (true = White's turn, false = Black's turn)
+    public static boolean gameOngoing = true;
+    //endregion
 
-    public static boolean isWhitesMove = true;
+    //region Moves
+    public static ArrayList<Move1> moves = new ArrayList<>(); // Stores all moves made in the game
+    public static ArrayList<Byte> accessibleMoves = new ArrayList<>(); // Stores accessible squares (their index) for a selected piece
+    //endregion
 
-    // Square names
-    public static String[] squareName = {
-            "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
-            "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
-            "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
-            "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5",
-            "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
-            "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
-            "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
-            "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
-    };
-
-    // Pieces
+    //region Piece Constants
+    // White Pieces
     public static final byte WHITE_PAWN = 1;
     public static final byte WHITE_KNIGHT = 2;
     public static final byte WHITE_BISHOP = 3;
@@ -40,8 +31,7 @@ public class Main {
     public static final byte WHITE_QUEEN = 5;
     public static final byte WHITE_KING = 6;
 
-    public static final byte EMPTY = 0;
-
+    // Black Pieces
     public static final byte BLACK_PAWN = -1;
     public static final byte BLACK_KNIGHT = -2;
     public static final byte BLACK_BISHOP = -3;
@@ -49,42 +39,12 @@ public class Main {
     public static final byte BLACK_QUEEN = -5;
     public static final byte BLACK_KING = -6;
 
-    // Rendering
-    public static JPanel mainPanel = UI.mainPanel;
-
-    // Piece images
-    public static final Map<Byte, BufferedImage> pieceImages = new HashMap<>(12);
-
-    static {
-        // Load piece images into the dictionary
-        ClassLoader classLoader = Main.class.getClassLoader();
-        try {
-            pieceImages.put(WHITE_PAWN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wP (Custom).png"))));
-            pieceImages.put(WHITE_KNIGHT, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wN (Custom).png"))));
-            pieceImages.put(WHITE_BISHOP, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wB (Custom).png"))));
-            pieceImages.put(WHITE_ROOK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wR (Custom).png"))));
-            pieceImages.put(WHITE_QUEEN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wQ (Custom).png"))));
-            pieceImages.put(WHITE_KING, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wK (Custom).png"))));
-            pieceImages.put(BLACK_PAWN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bP (Custom).png"))));
-            pieceImages.put(BLACK_KNIGHT, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bN (Custom).png"))));
-            pieceImages.put(BLACK_BISHOP, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bB (Custom).png"))));
-            pieceImages.put(BLACK_ROOK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bR (Custom).png"))));
-            pieceImages.put(BLACK_QUEEN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bQ (Custom).png"))));
-            pieceImages.put(BLACK_KING, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bK (Custom).png"))));
-
-
-        } catch (IOException e) {
-            throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
-        }
-    }
-
+    // Empty Square
+    public static final byte EMPTY = 0; // Represents an empty square on the board
     //endregion
 
-    public static ArrayList<Byte> accessibleMoves = new ArrayList<>();
-
     /**
-     * Attempts to call movePiece(), <br>
-     * Updates moveNotPossible if requested move is impossible
+     * Attempts to call movePiece()
      */
     public static void tryMovePiece(Square square1, Square square2) {
 
@@ -119,11 +79,11 @@ public class Main {
         // Setup chess notation
         String movingPieceStr = String.valueOf(square1.getPieceChar());
         String takesString = "";
-        String toLocation = squareName[square2.index];
+        String toLocation = square2.getSquareName();
 
         // If pawn move, just use file
         if (Math.abs(square1.piece) == WHITE_PAWN) {
-            toLocation = String.valueOf(squareName[square2.index].toCharArray()[1]);
+            toLocation = String.valueOf(square2.getSquareName().toCharArray()[1]);
         }
 
         if (square2.piece != EMPTY) {
@@ -255,13 +215,19 @@ public class Main {
         if (piecesCanMove()) {
             return -1;
         }
+
+        // When game over:
+        playSound("sounds/beep.wav");
+        gameOngoing = false;
+
+        // Handle checkmate
         if (isKingInCheck(board, isWhitesMove)) {
             System.out.println("CHECKMATE!");
-            playSound("sounds/beep.wav");
             return 1;
         }
+
+        // Handle draw
         System.out.println("DRAW...");
-        playSound("sounds/beep.wav");
         return 0;
     }
 
@@ -315,10 +281,24 @@ public class Main {
             return color == UI.WHITE;
         }
 
+        private String getSquareName() {
+            String[] squareName = {
+                    "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
+                    "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
+                    "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
+                    "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5",
+                    "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
+                    "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
+                    "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
+                    "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
+            };
+            return squareName[index];
+        }
+
         public char getPieceChar() {
             switch (this.piece) {
                 case WHITE_PAWN, BLACK_PAWN -> {
-                    return squareName[index].toCharArray()[0];
+                    return getSquareName().toCharArray()[0];
                 }
                 case WHITE_KNIGHT, BLACK_KNIGHT -> {
                     return 'N';
@@ -373,7 +353,6 @@ public class Main {
                 if (Main.getEndState() == 1) {
                     BufferedImage img = UI.pieceImages.get(CHECKMATE);
                     g.drawImage(img, 0, 0, getWidth(), getHeight(), this);
-                    System.out.println("Square drawing mate at" + getWidth() + ",  " + getHeight());
                 }
             }
 
@@ -697,7 +676,7 @@ public class Main {
     }
 
     public static boolean isKingInCheck(Square[] board, boolean isWhite) {
-        byte king = (byte) (isWhite ? WHITE_KING : BLACK_KING);
+        byte king = (isWhite ? WHITE_KING : BLACK_KING);
         Square kingSquare = null;
 
         // Find king position
@@ -724,6 +703,7 @@ public class Main {
     public static void setBoardFromFEN(String fen) {
         byte location = 0, piece_type;
 
+        // Place pieces
         stringIteratorLoop:
         for (char c : fen.toCharArray()) {
             // Translate characters to pieces
@@ -785,9 +765,18 @@ public class Main {
             board[location].setPiece(piece_type);
             location++;
         }
+
+        // Set black to move if specified
+        if (fen.contains(" b")) {
+            isWhitesMove = false;
+        }
+
+        // Print abnormal boards
         if (!fen.equals("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
             printBoard();
         }
+
+        // Repaint screen
         UI.repaint();
     }
     //endregion
@@ -851,8 +840,12 @@ public class Main {
 
 
     public static void main(String[] args) {
-        mainPanel = UI.handleGUI();
+        UI.mainPanel = UI.handleGUI();
+
+        // Default piece setup
         setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-//        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 w - - 0 1");
+
+        // Endgame
+//        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
     }
 }

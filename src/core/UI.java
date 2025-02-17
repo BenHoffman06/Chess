@@ -20,47 +20,42 @@ import java.util.concurrent.TimeUnit;
 
 public class UI {
 
-    public static boolean moveNotPossible = false;
-
-    //region Constants and Variables
-    // Colors
+    //region Colors
     public static final Color BACKGROUND = Color.decode("#161512");
     public static final Color WHITE = Color.decode("#f0d9b5");
     public static final Color BLACK = Color.decode("#b58863");
     public static final Color SELECTED_WHITE = Color.decode("#829769");
     public static final Color SELECTED_BLACK = Color.decode("#646f40");
     public static final Color RED = Color.decode("#af5f5f");
+    //endregion
 
+    //region Indicator Image Access Constants
     public static final byte TAKEABLE_WHITE = 50;
     public static final byte TAKEABLE_BLACK = -50;
     public static final byte CHECKMATE = 99;
+    //endregion
 
-
+    //region Selection Mistake Variables
     public static int redCountdown = 0;
     public static Main.Square redSquare;
+    //endregion
 
-    // Piece images
+    //region Piece Images
     public static final Map<Byte, BufferedImage> pieceImages = new HashMap<>(12);
-
-    // Mouse movement and selection variables
-    public static Main.Square selectedSquare = null;
-    public static boolean beingDragged = false;
-    public static int dragX, dragY;
-    public static int offsetX, offsetY; // Offset of click within the square
-
-    // core.Main panel
-    public static JPanel mainPanel;
 
     static {
         // Load piece images into the dictionary
         ClassLoader classLoader = Main.class.getClassLoader();
         try {
+            // White Pieces
             pieceImages.put(Main.WHITE_PAWN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wP (Custom).png"))));
             pieceImages.put(Main.WHITE_KNIGHT, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wN (Custom).png"))));
             pieceImages.put(Main.WHITE_BISHOP, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wB (Custom).png"))));
             pieceImages.put(Main.WHITE_ROOK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wR (Custom).png"))));
             pieceImages.put(Main.WHITE_QUEEN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wQ (Custom).png"))));
             pieceImages.put(Main.WHITE_KING, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/wK (Custom).png"))));
+
+            // Black Pieces
             pieceImages.put(Main.BLACK_PAWN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bP (Custom).png"))));
             pieceImages.put(Main.BLACK_KNIGHT, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bN (Custom).png"))));
             pieceImages.put(Main.BLACK_BISHOP, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bB (Custom).png"))));
@@ -68,7 +63,7 @@ public class UI {
             pieceImages.put(Main.BLACK_QUEEN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bQ (Custom).png"))));
             pieceImages.put(Main.BLACK_KING, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bK (Custom).png"))));
 
-            // Nonpieces
+            // Non-pieces (e.g., indicators)
             pieceImages.put(TAKEABLE_WHITE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-white.png"))));
             pieceImages.put(TAKEABLE_BLACK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-black.png"))));
             pieceImages.put(CHECKMATE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/checkmateOutline.png"))));
@@ -77,7 +72,17 @@ public class UI {
             throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
         }
     }
+//endregion
+
+    //region Mouse Interaction Variables
+    public static Main.Square selectedSquare = null;
+    public static boolean beingDragged = false;
+    public static int dragX, dragY;
+    public static int offsetX, offsetY; // Offset of click within the square
     //endregion
+
+    // UI Components
+    public static JPanel mainPanel;
 
     //region Square Selection and Dragging Logic
     public static boolean isSelecting(Main.Square s) {
@@ -130,7 +135,6 @@ public class UI {
     }
 
     public static void handleInvalidMoveTo(Main.Square s) {
-        moveNotPossible = true;
         UI.selectedSquare = null;
 
         UI.redCountdown = 25;
@@ -153,21 +157,21 @@ public class UI {
 
             @Override
             public void mousePressed(MouseEvent e) {
-                Main.Square clickedSquare = getSquareAt(e.getPoint());
-
-                if (clickedSquare != null && clickedSquare.piece != Main.EMPTY) {
-                    handleSquareSelection(clickedSquare);
-
-                    // Calculate offset
-                    offsetX = e.getX() - clickedSquare.getX();
-                    offsetY = e.getY() - clickedSquare.getY();
-                } else {
-                    handleSquareSelection(clickedSquare); // Call handleSquareSelection anyways to handle deselection
+                // Ignore if game is over
+                if (!Main.gameOngoing) {
+                    return;
                 }
 
+                // Handle selection/deselection
+                Main.Square clickedSquare = getSquareAt(e.getPoint());
+                handleSquareSelection(clickedSquare);
+
+                // If not selecting square, clear accessible moves
                 if (selectedSquare == null || selectedSquare.isEmpty()) {
                     Main.accessibleMoves.clear();
                 }
+
+                // If selecting square, keep accessible moves updated
                 else {
                     Main.accessibleMoves = Main.accessibleSquaresOf(UI.selectedSquare, Main.board, true);
                 }
@@ -175,6 +179,11 @@ public class UI {
 
             @Override
             public void mouseDragged(MouseEvent e) {
+                // Ignore if game is over
+                if (!Main.gameOngoing) {
+                    return;
+                }
+
                 dragX = e.getX();
                 dragY = e.getY();
                 beingDragged = true;
@@ -183,13 +192,19 @@ public class UI {
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                // Handle piece movement on release
+                // Ignore if game is over
+                if (!Main.gameOngoing) {
+                    return;
+                }
+
+                // If previously selected a different, move to new point
                 Main.Square targetSquare = getSquareAt(e.getPoint());
                 if (targetSquare != null && targetSquare != selectedSquare && selectedSquare != null) {
                     Main.tryMovePiece(selectedSquare, targetSquare);
                 }
                 beingDragged = false;
 
+                // If doing drag and drop, clear accessible moves after making move
                 if (selectedSquare == null || selectedSquare.isEmpty()) {
                     Main.accessibleMoves.clear();
                 }
@@ -207,15 +222,6 @@ public class UI {
 
         // Setup mainPanel
         mainPanel = new JPanel(null) {
-            // Background
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                g.setColor(BACKGROUND);
-                g.fillRect(0, 0, getWidth(), getHeight());
-            }
-
-            // Stationary pieces and dragged piece
             @Override
             public void paint(Graphics g) {
                 super.paint(g);
@@ -248,28 +254,15 @@ public class UI {
                         }
                     }
                 }
-
-//                // If check-mate:
-//                if (Main.getEndState() == 1) {
-//
-//                    // Find mated king square
-//                    Main.Square kingSquare = Main.board[0];
-//                    for (Main.Square s : Main.board) {
-//                        if (s.piece == Main.WHITE_KING && Main.isWhitesMove || s.piece == Main.BLACK_KING && !Main.isWhitesMove) {
-//                            kingSquare = s;
-//                            break;
-//                        }
-//                    }
-//                    // Highlight it
-//                    Point pos = getSquarePosition(kingSquare.index);
-//                    BufferedImage img = pieceImages.get(CHECKMATE);
-//                    g.drawImage(img, pos.x, pos.y, kingSquare.getWidth(), kingSquare.getHeight(), this);
-//                }
             }
         };
 
+        // Add mouse listeners
         mainPanel.addMouseListener(mouseHandler);
         mainPanel.addMouseMotionListener(mouseHandler);
+
+        // Add background to mainPanel
+        mainPanel.setBackground(BACKGROUND);
 
         // Setup frame
         JFrame frame = new JFrame("Chess");
@@ -298,10 +291,7 @@ public class UI {
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
         executor.scheduleAtFixedRate(() -> {
-
-            if (redCountdown > 0) {
-//                System.out.println("doing red countdown");
-                redCountdown -= 1;
+            if (redCountdown-- > 0) {
                 if (redCountdown == 0) {
                     repaint();
                 }
@@ -350,7 +340,9 @@ public class UI {
     }
 
 
-
+    /**
+     * Works only with WAV files
+     */
     public static void playSound(String filename) {
         // thanks DeepSeek for uh my code
 
