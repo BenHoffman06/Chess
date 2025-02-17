@@ -1,13 +1,16 @@
+package core;
+
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -30,6 +33,7 @@ public class UI {
 
     public static final byte TAKEABLE_WHITE = 50;
     public static final byte TAKEABLE_BLACK = -50;
+    public static final byte CHECKMATE = 99;
 
 
     public static int redCountdown = 0;
@@ -44,7 +48,7 @@ public class UI {
     public static int dragX, dragY;
     public static int offsetX, offsetY; // Offset of click within the square
 
-    // Main panel
+    // core.Main panel
     public static JPanel mainPanel;
 
     static {
@@ -63,8 +67,11 @@ public class UI {
             pieceImages.put(Main.BLACK_ROOK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bR (Custom).png"))));
             pieceImages.put(Main.BLACK_QUEEN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bQ (Custom).png"))));
             pieceImages.put(Main.BLACK_KING, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bK (Custom).png"))));
+
+            // Nonpieces
             pieceImages.put(TAKEABLE_WHITE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-white.png"))));
             pieceImages.put(TAKEABLE_BLACK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-black.png"))));
+            pieceImages.put(CHECKMATE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/checkmateOutline.png"))));
 
         } catch (IOException e) {
             throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
@@ -118,7 +125,7 @@ public class UI {
     }
     //endregion
 
-    public static void handleCapture(byte piece) {
+    public static void handleCapture() {
         playSound("sounds/Capture.wav");
     }
 
@@ -241,8 +248,23 @@ public class UI {
                         }
                     }
                 }
-                // TODO add special rendering for pieces which are accessibleSquaresOf(selectedPiece)
 
+//                // If check-mate:
+//                if (Main.getEndState() == 1) {
+//
+//                    // Find mated king square
+//                    Main.Square kingSquare = Main.board[0];
+//                    for (Main.Square s : Main.board) {
+//                        if (s.piece == Main.WHITE_KING && Main.isWhitesMove || s.piece == Main.BLACK_KING && !Main.isWhitesMove) {
+//                            kingSquare = s;
+//                            break;
+//                        }
+//                    }
+//                    // Highlight it
+//                    Point pos = getSquarePosition(kingSquare.index);
+//                    BufferedImage img = pieceImages.get(CHECKMATE);
+//                    g.drawImage(img, pos.x, pos.y, kingSquare.getWidth(), kingSquare.getHeight(), this);
+//                }
             }
         };
 
@@ -265,8 +287,8 @@ public class UI {
         }
 
         // Set up listener to resize board on window resize
-        frame.addComponentListener(new java.awt.event.ComponentAdapter() {
-            public void componentResized(java.awt.event.ComponentEvent evt) {
+        frame.addComponentListener(new ComponentAdapter() {
+            public void componentResized(ComponentEvent evt) {
                 resizeSquares(mainPanel);
             }
         });
@@ -329,7 +351,7 @@ public class UI {
 
 
 
-    private static void playSound(String filename) {
+    public static void playSound(String filename) {
         // thanks DeepSeek for uh my code
 
         // sound from https://github.com/lichess-org/lila/blob/master/public/sound/standard/Capture.mp3

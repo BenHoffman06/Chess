@@ -1,11 +1,13 @@
+package core;
+
 import javax.imageio.ImageIO;
-import javax.net.ssl.CertPathTrustManagerParameters;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.*;
+
+import static core.UI.*;
 
 public class Main {
 
@@ -14,7 +16,7 @@ public class Main {
     public static Square[] board = new Square[64];
 
     // Moves
-    public static ArrayList<Move> moves = new ArrayList<>();
+    public static ArrayList<Move1> moves = new ArrayList<>();
 
     public static boolean isWhitesMove = true;
 
@@ -69,6 +71,8 @@ public class Main {
             pieceImages.put(BLACK_ROOK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bR (Custom).png"))));
             pieceImages.put(BLACK_QUEEN, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bQ (Custom).png"))));
             pieceImages.put(BLACK_KING, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/bK (Custom).png"))));
+
+
         } catch (IOException e) {
             throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
         }
@@ -91,7 +95,7 @@ public class Main {
             UI.repaint();
 
             // Add it to move list
-            moves.add(new Move(moveNotation, square1, square2));
+            moves.add(new Move1(moveNotation, square1, square2));
         }
         else {
             UI.handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
@@ -123,7 +127,7 @@ public class Main {
         }
 
         if (square2.piece != EMPTY) {
-            UI.handleCapture(square2.piece);
+            UI.handleCapture();
             takesString = "x";
         }
 
@@ -206,6 +210,7 @@ public class Main {
             Square behind = board[square2.index + Integer.signum(square1.piece) * 8];
             behind.piece = EMPTY;
             takesString = "x";
+            UI.handleCapture();
         }
         //endregion
 
@@ -219,6 +224,45 @@ public class Main {
 
 
         return movingPieceStr + takesString + toLocation;
+    }
+
+    public static boolean piecesCanMove() {
+        ArrayList<Square> accessibleSquares = new ArrayList<>();
+        for (Square s : board) {
+            if (s.piece == EMPTY) {
+                continue;
+            }
+            boolean isWhite = Math.signum(s.piece) > 0;
+            boolean isPiecesTurnToMove =  isWhite && isWhitesMove || !isWhite && !isWhitesMove;
+
+            // If it is the correct color
+            if (isPiecesTurnToMove) {
+
+                // And if it can move somewhere
+                if (!accessibleSquaresOf(s, board, true).isEmpty()) {
+
+                    return true;
+                }
+            }
+        }
+        return false; // if there does not exist a piece of the right color which can move
+    }
+
+    /**
+     * Returns 0 if stalemated, 1 if checkmated, -1 if pieces can move
+     */
+    public static int getEndState() {
+        if (piecesCanMove()) {
+            return -1;
+        }
+        if (isKingInCheck(board, isWhitesMove)) {
+            System.out.println("CHECKMATE!");
+            playSound("sounds/beep.wav");
+            return 1;
+        }
+        System.out.println("DRAW...");
+        playSound("sounds/beep.wav");
+        return 0;
     }
 
     private static void makeMove(Square[] board, byte from, byte to) {
@@ -238,8 +282,8 @@ public class Main {
         board[from].piece = EMPTY;
     }
 
-    static class Square extends JPanel {
-        private final Color color;
+    public static class Square extends JPanel {
+        public final Color color;
         public byte piece;
         public byte index;
 
@@ -297,7 +341,7 @@ public class Main {
         }
 
         public boolean hasChanged() {
-            for (Move m : moves) {
+            for (Move1 m : moves) {
                 // If square has been moved to or from, it has changed
                 if (index == m.square1.index || index == m.square2.index) {
                     return true;
@@ -323,10 +367,21 @@ public class Main {
             }
             g.fillRect(0, 0, getWidth(), getHeight());
 
+
+            // Draw checkmate image if checkmated
+            if (piece == WHITE_KING && isWhitesMove || piece == BLACK_KING && !isWhitesMove) {
+                if (Main.getEndState() == 1) {
+                    BufferedImage img = UI.pieceImages.get(CHECKMATE);
+                    g.drawImage(img, 0, 0, getWidth(), getHeight(), this);
+                    System.out.println("Square drawing mate at" + getWidth() + ",  " + getHeight());
+                }
+            }
+
             // Draw piece if NOT being dragged
             if (piece != EMPTY && !UI.isDragging(this)) {
                 BufferedImage img = pieceImages.get(piece);
                 g.drawImage(img, 0, 0, getWidth(), getHeight(), this);
+
             }
         }
     }
@@ -597,7 +652,7 @@ public class Main {
                 }
 
                 // If the king hasn't moved
-                if (!square.hasChanged()) {
+                if (!square.hasChanged() && squaresLeft == 4) {
 
                     // Kingside castling:
 
@@ -668,6 +723,8 @@ public class Main {
 
     public static void setBoardFromFEN(String fen) {
         byte location = 0, piece_type;
+
+        stringIteratorLoop:
         for (char c : fen.toCharArray()) {
             // Translate characters to pieces
             switch (c) {
@@ -719,6 +776,8 @@ public class Main {
                 case '8':
                     location += (byte) Character.getNumericValue(c);
                     continue;
+                case ' ':
+                    break stringIteratorLoop;
                 default:
                     throw new RuntimeException("Error in FEN String");
             }
@@ -726,13 +785,74 @@ public class Main {
             board[location].setPiece(piece_type);
             location++;
         }
-
+        if (!fen.equals("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
+            printBoard();
+        }
         UI.repaint();
     }
     //endregion
 
+    public static void printBoard() {
+        for (int i = 0; i < board.length; i++) {
+            Square s = board[i];
+            char c;
+
+            switch (s.piece) {
+                case WHITE_KING:
+                    c = 'K';
+                    break;
+                case WHITE_QUEEN:
+                    c = 'Q';
+                    break;
+                case WHITE_ROOK:
+                    c = 'R';
+                    break;
+                case WHITE_BISHOP:
+                    c = 'B';
+                    break;
+                case WHITE_KNIGHT:
+                    c = 'N';
+                    break;
+                case WHITE_PAWN:
+                    c = 'P';
+                    break;
+                case BLACK_KING:
+                    c = 'k';
+                    break;
+                case BLACK_QUEEN:
+                    c = 'q';
+                    break;
+                case BLACK_ROOK:
+                    c = 'r';
+                    break;
+                case BLACK_BISHOP:
+                    c = 'b';
+                    break;
+                case BLACK_KNIGHT:
+                    c = 'n';
+                    break;
+                case BLACK_PAWN:
+                    c = 'p';
+                    break;
+                case EMPTY:
+                default:
+                    c = '.';
+                    break;
+            }
+
+            System.out.print(c + " ");
+
+            // Print a newline after every 8 squares to create rows
+            if ((i + 1) % 8 == 0) {
+                System.out.println();
+            }
+        }
+    }
+
+
     public static void main(String[] args) {
         mainPanel = UI.handleGUI();
         setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+//        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 w - - 0 1");
     }
 }
