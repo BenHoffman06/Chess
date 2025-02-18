@@ -78,7 +78,6 @@ public class UI {
     public static Main.Square selectedSquare = null;
     public static boolean beingDragged = false;
     public static int dragX, dragY;
-    public static int offsetX, offsetY; // Offset of click within the square
     //endregion
 
     // UI Components
@@ -109,22 +108,20 @@ public class UI {
             }
         } else {
 
-            // Clicking the same square again: deselect
-            if (selectedSquare == s) {
-                selectedSquare = null;
-            }
-            // If clicking new square
-            else {
+            // If clicking different square
+            if (selectedSquare != s) {
 
-                // If previously selected square has a piece
+                // And if previously selected square has a piece
                 if (selectedSquare.piece != Main.EMPTY) {
 
                     // Try to move to new square
                     Main.tryMovePiece(selectedSquare, s);
                 }
                 // Clear selection after move or if selected square was empty
-                selectedSquare = null;
             }
+
+            // Clicking the same square again: deselect
+            selectedSquare = null;
         }
         repaint();
     }
@@ -224,6 +221,13 @@ public class UI {
         mainPanel = new JPanel(null) {
             @Override
             public void paint(Graphics g) {
+                //region Enable rendering optimizations
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                //endregion
+
                 super.paint(g);
 
                 // Draw dragging pieces
@@ -322,6 +326,9 @@ public class UI {
             Component square = panel.getComponent(i);
             square.setBounds(startX + col * size, startY + row * size, size, size);
         }
+
+        // Repaint only the chessboard area
+        panel.repaint(startX, startY, size * 8, size * 8);
     }
     //endregion
 

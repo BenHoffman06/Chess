@@ -65,8 +65,8 @@ public class Main {
 
 
     /**
-     * Move piece from square1 to square2
-     * @Returns chess notation for move
+     * Move piece from square1 to square2 <br>
+     * returns chess notation for move
      */
     public static String movePiece(Square square1, Square square2) {
         byte from = square1.index;
@@ -94,14 +94,12 @@ public class Main {
         //region Castling
         boolean kingMove = Math.abs(square1.piece) == WHITE_KING;
         int distance = Math.abs(square1.index % 8 - square2.index % 8);
-        boolean isCastlingMove = false;
 
         // Check king moved and it wasn't just his normal movement
         if (kingMove && distance > 1) {
 
             // If doing kingside castle
             if (square2.index > square1.index) {
-                isCastlingMove = true;
 
                 // bring rookSquare other side
                 Square rookSquare = board[square2.index + 1];
@@ -124,7 +122,6 @@ public class Main {
 
             // If doing queenside castle
             else {
-                isCastlingMove = true;
 
                 // bring rook other side
                 Square rookSquare = board[square2.index - 2];
@@ -175,7 +172,7 @@ public class Main {
         //endregion
 
         // If a non-promotion and non-castling move, update new square
-        if (!isCastlingMove && !isBlackPromotion && !isWhitePromotion) {
+        if (!isBlackPromotion && !isWhitePromotion) {
             board[to].piece = board[from].piece;
         }
 
@@ -187,7 +184,6 @@ public class Main {
     }
 
     public static boolean piecesCanMove() {
-        ArrayList<Square> accessibleSquares = new ArrayList<>();
         for (Square s : board) {
             if (s.piece == EMPTY) {
                 continue;
@@ -320,18 +316,24 @@ public class Main {
             }
         }
 
-        public boolean hasChanged() {
+        public boolean hasNotChanged() {
             for (Move1 m : moves) {
                 // If square has been moved to or from, it has changed
                 if (index == m.square1.index || index == m.square2.index) {
-                    return true;
+                    return false;
                 }
             }
-            return false;
+            return true;
         }
 
         @Override
         protected void paintComponent(Graphics g) {
+            //region Enable rendering optimizations
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            //endregion
 
             super.paintComponent(g);
 
@@ -377,7 +379,7 @@ public class Main {
         if (checkForChecks) {
             // Verify each move doesn't leave king in check
             for (Byte move : rawMoves) {
-                Square[] simulatedBoard = copyBoard(board);
+                Square[] simulatedBoard = copyBoard(board, location, move);
                 makeMove(simulatedBoard, location, move);
                 if (!isKingInCheck(simulatedBoard, piece > 0)) {
                     validMoves.add(move);
@@ -631,7 +633,7 @@ public class Main {
                 }
 
                 // If the king hasn't moved
-                if (!square.hasChanged() && squaresLeft == 4) {
+                if (square.hasNotChanged() && squaresLeft == 4) {
 
                     // Kingside castling:
 
@@ -639,7 +641,7 @@ public class Main {
                     if (board[location + 1].isEmpty() && board[location + 2].isEmpty()) {
 
                         // And rook has not moved
-                        if (!board[location + 3].hasChanged()) {
+                        if (board[location + 3].hasNotChanged()) {
 
                             // Add to moves
                             byteMoves.add((byte) (location + 2));
@@ -652,7 +654,7 @@ public class Main {
                     if (board[location - 1].isEmpty() && board[location - 2].isEmpty() && board[location - 3].isEmpty()) {
 
                         // And rook has not moved
-                        if (!board[location - 4].hasChanged())  {
+                        if (board[location - 4].hasNotChanged())  {
 
                             // Add to moves
                             byteMoves.add((byte) (location - 2));
@@ -667,10 +669,17 @@ public class Main {
     //endregion
 
     //region Helper methods
-    private static Square[] copyBoard(Square[] original) {
+    private static Square[] copyBoard(Square[] original, byte from, byte to) {
         Square[] copy = new Square[64];
         for (int i = 0; i < original.length; i++) {
-            copy[i] = new Square(original[i]);
+            // Create deep copy if will be changed
+            if (i == from || i == to) {
+                copy[i] = new Square(original[i]);
+            }
+            // Create shallow copy otherwise
+            else {
+                copy[i] = original[i];
+            }
         }
         return copy;
     }
@@ -784,50 +793,21 @@ public class Main {
     public static void printBoard() {
         for (int i = 0; i < board.length; i++) {
             Square s = board[i];
-            char c;
-
-            switch (s.piece) {
-                case WHITE_KING:
-                    c = 'K';
-                    break;
-                case WHITE_QUEEN:
-                    c = 'Q';
-                    break;
-                case WHITE_ROOK:
-                    c = 'R';
-                    break;
-                case WHITE_BISHOP:
-                    c = 'B';
-                    break;
-                case WHITE_KNIGHT:
-                    c = 'N';
-                    break;
-                case WHITE_PAWN:
-                    c = 'P';
-                    break;
-                case BLACK_KING:
-                    c = 'k';
-                    break;
-                case BLACK_QUEEN:
-                    c = 'q';
-                    break;
-                case BLACK_ROOK:
-                    c = 'r';
-                    break;
-                case BLACK_BISHOP:
-                    c = 'b';
-                    break;
-                case BLACK_KNIGHT:
-                    c = 'n';
-                    break;
-                case BLACK_PAWN:
-                    c = 'p';
-                    break;
-                case EMPTY:
-                default:
-                    c = '.';
-                    break;
-            }
+            char c = switch (s.piece) {
+                case WHITE_KING -> 'K';
+                case WHITE_QUEEN -> 'Q';
+                case WHITE_ROOK -> 'R';
+                case WHITE_BISHOP -> 'B';
+                case WHITE_KNIGHT -> 'N';
+                case WHITE_PAWN -> 'P';
+                case BLACK_KING -> 'k';
+                case BLACK_QUEEN -> 'q';
+                case BLACK_ROOK -> 'r';
+                case BLACK_BISHOP -> 'b';
+                case BLACK_KNIGHT -> 'n';
+                case BLACK_PAWN -> 'p';
+                default -> '.';
+            };
 
             System.out.print(c + " ");
 
