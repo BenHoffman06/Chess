@@ -382,6 +382,35 @@ public class Main {
                 Square[] simulatedBoard = copyBoard(board, location, move);
                 makeMove(simulatedBoard, location, move);
                 if (!isKingInCheck(simulatedBoard, piece > 0)) {
+
+
+                    // If castling:
+                    int diff = move - location;
+                    if (Math.abs(diff) == 2 && Math.abs(piece) == WHITE_KING) {
+
+                        //region Handle no castling through check
+                        // Find square between pre-castled and post-castled king square (where rook will be), calling it intermediateSquare
+                        int direction = (diff > 0) ? 1 : -1;
+                        byte intermediateSquare = (byte)(location + direction);
+
+                        // Simulate moving the king to the intermediate square
+                        Square[] simulatedCastlingBoard = copyBoard(board, location, intermediateSquare);
+                        makeMove(simulatedCastlingBoard, location, intermediateSquare);
+
+                        // If the king would be in check on the intermediate square, discard this castling move.
+                        if (isKingInCheck(simulatedCastlingBoard, piece > 0)) {
+                            continue;
+                        }
+                        //endregion
+
+                        //region Handle no castling while in check
+                        if (isKingInCheck(board, piece > 0)) {
+                            continue;
+                        }
+                        //endregion
+                    }
+
+                    // Add it to validMoves if not castling or passes castling check
                     validMoves.add(move);
                 }
             }
@@ -638,9 +667,11 @@ public class Main {
                     // Kingside castling:
 
                     // If there is space
-                    if (board[location + 1].isEmpty() && board[location + 2].isEmpty()) {
+                    Square ks1 = board[location + 1];
+                    Square ks2 = board[location + 2];
+                    if (ks1.isEmpty() && ks2.isEmpty()) {
 
-                        // And rook has not moved
+                        // And if rook has not moved
                         if (board[location + 3].hasNotChanged()) {
 
                             // Add to moves
@@ -651,13 +682,17 @@ public class Main {
                     // Queenside castling:
 
                     // If there is space
-                    if (board[location - 1].isEmpty() && board[location - 2].isEmpty() && board[location - 3].isEmpty()) {
+                    Square qs1 = board[location - 1];
+                    Square qs2 = board[location - 2];
+                    Square qs3 = board[location - 3];
+                    if (qs1.isEmpty() && qs2.isEmpty() && qs3.isEmpty()) {
 
                         // And rook has not moved
                         if (board[location - 4].hasNotChanged())  {
 
                             // Add to moves
                             byteMoves.add((byte) (location - 2));
+
                         }
                     }
                 }
@@ -673,13 +708,13 @@ public class Main {
         Square[] copy = new Square[64];
         for (int i = 0; i < original.length; i++) {
             // Create deep copy if will be changed
-            if (i == from || i == to) {
+//            if (i == from || i == to) {
                 copy[i] = new Square(original[i]);
-            }
-            // Create shallow copy otherwise
-            else {
-                copy[i] = original[i];
-            }
+//            }
+//            // Create shallow copy otherwise
+//            else {
+//                copy[i] = original[i];
+//            }
         }
         return copy;
     }
