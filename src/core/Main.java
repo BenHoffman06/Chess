@@ -212,18 +212,29 @@ public class Main {
             return -1;
         }
 
-        // When game over:
-        playSound("sounds/beep.wav");
-        gameOngoing = false;
-
         // Handle checkmate
+        // only triggers once before gameOngoing flag is set to false
         if (isKingInCheck(board, isWhitesMove)) {
-            System.out.println("CHECKMATE!");
+
+            if (gameOngoing) {
+                String winner = isWhitesMove ? "Black" : "White";
+                UI.summonEndGamePanel(winner + " Wins", "by checkmate");
+
+                playSound("sounds/beep.wav");
+                gameOngoing = false;
+            }
+
             return 1;
         }
 
         // Handle draw
-        System.out.println("DRAW...");
+        if (gameOngoing) {
+            System.out.println("DRAW...");
+            UI.summonEndGamePanel("Stalemate", "");
+
+            playSound("sounds/beep.wav");
+            gameOngoing = false;
+        }
         return 0;
     }
 
@@ -747,6 +758,11 @@ public class Main {
     public static void setBoardFromFEN(String fen) {
         byte location = 0, piece_type;
 
+        // Clear board
+        for (Square s : board) {
+            s.piece = EMPTY;
+        }
+
         // Place pieces
         stringIteratorLoop:
         for (char c : fen.toCharArray()) {
@@ -853,14 +869,21 @@ public class Main {
         }
     }
 
+    public static void resetBoard() {
+        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+    }
 
     public static void main(String[] args) {
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
-        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+//        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
-        // Endgame
-//        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
+        // Endgame with black winning
+        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
+
+        // Endgame with white winning
+//        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
+
     }
 }

@@ -4,10 +4,7 @@ import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,8 +17,22 @@ import java.util.concurrent.TimeUnit;
 
 public class UI {
 
+    public static boolean gameEnded = false;
+    public static String endGameTitle = "";
+    public static String endGameSubtitle = "";
+
+    // Add these to track button positions
+    public static Rectangle rematchButtonBounds;
+    public static Rectangle exitButtonBounds;
+    public static Rectangle hideButtonBounds;
+
+    // Variables to see which button image should be drawn
+    public static boolean rematchHover;
+    public static boolean exitHover;
+    public static boolean hideHover;
+
     //region Colors
-    public static final Color BACKGROUND = Color.decode("#161512");
+    public static final Color BACKGROUND = Color.decode("#262421");
     public static final Color WHITE = Color.decode("#f0d9b5");
     public static final Color BLACK = Color.decode("#b58863");
     public static final Color SELECTED_WHITE = Color.decode("#829769");
@@ -33,6 +44,14 @@ public class UI {
     public static final byte TAKEABLE_WHITE = 50;
     public static final byte TAKEABLE_BLACK = -50;
     public static final byte CHECKMATE = 99;
+
+    public static final byte EXIT_BUTTON = 100;
+    public static final byte EXIT_BUTTON_SELECTED = 101;
+    public static final byte HIDE_BUTTON = 102;
+    public static final byte HIDE_BUTTON_SELECTED = 103;
+    public static final byte REMATCH_BUTTON = 104;
+    public static final byte REMATCH_BUTTON_SELECTED = 105;
+    public static final byte END_PANEL_BASE = 106;
     //endregion
 
     //region Selection Mistake Variables
@@ -67,6 +86,16 @@ public class UI {
             pieceImages.put(TAKEABLE_WHITE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-white.png"))));
             pieceImages.put(TAKEABLE_BLACK, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/takeable-black.png"))));
             pieceImages.put(CHECKMATE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/checkmateOutline.png"))));
+
+            // End game panel svgs
+            pieceImages.put(EXIT_BUTTON, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/exitButton.png"))));
+            pieceImages.put(EXIT_BUTTON_SELECTED, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/exitButtonSelected.png"))));
+            pieceImages.put(HIDE_BUTTON, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/hideButton.png"))));
+            pieceImages.put(HIDE_BUTTON_SELECTED, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/hideButtonSelected.png"))));
+            pieceImages.put(REMATCH_BUTTON, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/rematchButton.png"))));
+            pieceImages.put(REMATCH_BUTTON_SELECTED, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/rematchButtonSelected.png"))));
+            pieceImages.put(END_PANEL_BASE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/endPanelBase.png"))));
+
 
         } catch (IOException e) {
             throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
@@ -154,12 +183,28 @@ public class UI {
 
             @Override
             public void mousePressed(MouseEvent e) {
-                // Ignore if game is over
-                if (!Main.gameOngoing) {
+
+                if (gameEnded) {
+                    System.out.println("Game ended, mouse pressed");
+
+                    //region Only look for interaction on end game panel
+                    if (rematchButtonBounds.contains(e.getPoint())) {
+                        rematch();
+                    }
+                    else if (exitButtonBounds.contains(e.getPoint())) {
+                        System.exit(0);
+                    }
+                    // Add this condition for hide button
+                    else if (hideButtonBounds.contains(e.getPoint())) {
+                        gameEnded = false;
+                        mainPanel.repaint();
+                    }
+                    //endregion
                     return;
                 }
 
-                // Handle selection/deselection
+                //region Handle selection/deselection
+
                 Main.Square clickedSquare = getSquareAt(e.getPoint());
                 handleSquareSelection(clickedSquare);
 
@@ -171,6 +216,19 @@ public class UI {
                 // If selecting square, keep accessible moves updated
                 else {
                     Main.accessibleMoves = Main.accessibleSquaresOf(UI.selectedSquare, Main.board, true);
+                }
+                //endregion
+            }
+
+            public void mouseMoved(MouseEvent e) {
+                // Keep track of hovered buttons if on game end panel
+                if (gameEnded) {
+                    Point mousePos = e.getPoint();
+                    rematchHover = rematchButtonBounds.contains(mousePos);
+                    exitHover = exitButtonBounds.contains(mousePos);
+                    hideHover = hideButtonBounds.contains(mousePos);
+
+                    mainPanel.repaint();
                 }
             }
 
@@ -218,19 +276,26 @@ public class UI {
         };
 
         // Setup mainPanel
+        // Modified paint method in mainPanel
         mainPanel = new JPanel(null) {
             @Override
             public void paint(Graphics g) {
-                //region Enable rendering optimizations
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                //endregion
-
                 super.paint(g);
 
-                // Draw dragging pieces
+                // Existing chessboard painting logic here...
+
+                // Draw end game overlay if needed
+                if (gameEnded) {
+                    // Darken background
+                    g.setColor(new Color(0, 0, 0, 150)); // Semi-transparent black
+                    g.fillRect(0, 0, getWidth(), getHeight());
+
+                    // Draw end game content
+                    Graphics2D g2d = (Graphics2D) g;
+                    drawEndGamePanel(g2d);
+                }
+
+                // Draw dragging pieces last (on top of everything)
                 if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && UI.isDragging(selectedSquare)) {
                     int x = dragX - selectedSquare.getWidth() / 2;
                     int y = dragY - selectedSquare.getWidth() / 2;
@@ -258,6 +323,49 @@ public class UI {
                         }
                     }
                 }
+            }
+
+            private void drawEndGamePanel(Graphics2D g2d) {
+                int squareSize = Main.board[0].getWidth();
+                int panelWidth = (int)(squareSize * 3.25);
+                int panelHeight = (int)(panelWidth * (334.0/323.0));
+                int x = (getWidth() - panelWidth) / 2;
+                int y = (getHeight() - panelHeight) / 2;
+
+                // Draw base panel
+                g2d.drawImage(pieceImages.get(END_PANEL_BASE), x, y, panelWidth, panelHeight, this);
+
+                // Calculate bounding boxes and trust they're right
+                rematchButtonBounds = new Rectangle(x + (int)(27.0/323.0 * panelWidth), y + (int)(164.0/334.0 * panelHeight), (int)(269.0/323.0 * panelWidth), (int)(64.0/334.0 * panelHeight));
+                exitButtonBounds = new Rectangle(rematchButtonBounds.x,  y + (int)(238.0/334.0 * panelHeight),rematchButtonBounds.width,rematchButtonBounds.height);
+                hideButtonBounds = new Rectangle(x + (int)(295.0/323.0 * panelWidth),y + (int)(16.0/334.0 * panelHeight),(int)(16.0/323.0 * panelWidth),(int)(16.0/323.0 * panelWidth));
+
+                // Get appropriate button sprites
+                BufferedImage hideImg = hideHover ? pieceImages.get(HIDE_BUTTON_SELECTED) : pieceImages.get(HIDE_BUTTON);
+                BufferedImage rematchImg = rematchHover ? pieceImages.get(REMATCH_BUTTON_SELECTED) : pieceImages.get(REMATCH_BUTTON);
+                BufferedImage exitImg = exitHover ? pieceImages.get(EXIT_BUTTON_SELECTED) : pieceImages.get(EXIT_BUTTON);
+
+                // Draw buttons using bounds
+                g2d.drawImage(hideImg, hideButtonBounds.x, hideButtonBounds.y, hideButtonBounds.width, hideButtonBounds.height, this);
+                g2d.drawImage(rematchImg, rematchButtonBounds.x, rematchButtonBounds.y, rematchButtonBounds.width, rematchButtonBounds.height, this);
+                g2d.drawImage(exitImg, exitButtonBounds.x, exitButtonBounds.y, exitButtonBounds.width, exitButtonBounds.height, this);
+
+                // Scale fonts
+                int titleFontSize = (int)(panelHeight * (24.0/334.0));
+                int subTitleFontSize = (int)(panelHeight * (14.0/334.0));
+
+                g2d.setFont(new Font("Arial", Font.BOLD, titleFontSize));
+                drawCenteredString(g2d, endGameTitle, new Rectangle(x, y + (int)(panelHeight * 0.06), panelWidth, (int)(panelHeight * 0.09)));
+
+                g2d.setFont(new Font("Arial", Font.PLAIN, subTitleFontSize));
+                drawCenteredString(g2d, endGameSubtitle, new Rectangle(x, y + (int)(panelHeight * 0.15), panelWidth, (int)(panelHeight * 0.06)));
+            }
+            private void drawCenteredString(Graphics g, String text, Rectangle rect) {
+                FontMetrics metrics = g.getFontMetrics();
+                int x = rect.x + (rect.width - metrics.stringWidth(text)) / 2;
+                int y = rect.y + ((rect.height - metrics.getHeight()) / 2) + metrics.getAscent();
+                g.setColor(Color.WHITE);
+                g.drawString(text, x, y);
             }
         };
 
@@ -309,6 +417,24 @@ public class UI {
     }
 
     public static void repaint() {
+        mainPanel.repaint();
+    }
+
+    // Modified summonEndGamePanel
+    public static void summonEndGamePanel(String title, String subtitle) {
+        gameEnded = true;
+        endGameTitle = title;
+        endGameSubtitle = subtitle;
+        mainPanel.repaint();
+    }
+
+    public static void rematch() {
+        gameEnded = false;
+        Main.gameOngoing = true;
+        Main.isWhitesMove = true;
+
+        Main.resetBoard();
+
         mainPanel.repaint();
     }
 
