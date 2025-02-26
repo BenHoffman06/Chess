@@ -148,10 +148,16 @@ public class Main {
         boolean isWhitePromotion = board[from].piece == WHITE_PAWN && to < 8;
         boolean isBlackPromotion = board[from].piece == BLACK_PAWN && to >= 56;
         if (isWhitePromotion) {
-            board[to].piece = WHITE_QUEEN;
+            isPromoting = true;
+            promotionSquare = square2;
+//            board[to].piece = chosenPieceToPromoteTo;
+//            chosenPieceToPromoteTo = 0;
         }
         else if (isBlackPromotion) {
-            board[to].piece = BLACK_QUEEN;
+            isPromoting = true;
+            promotionSquare = square2;
+//            board[to].piece = chosenPieceToPromoteTo;
+//            chosenPieceToPromoteTo = 0;
         }
         //endregion
 
@@ -241,10 +247,12 @@ public class Main {
     private static void makeMove(Square[] board, byte from, byte to) {
         //region Handle promotions
         if (board[from].piece == WHITE_PAWN && to < 8) {
-            board[to].piece = WHITE_QUEEN;
+            board[to].piece = chosenPieceToPromoteTo;
+            System.out.println("New piece: " + board[to].piece);
         }
         else if (board[from].piece == BLACK_PAWN && to >= 56) {
-            board[to].piece = BLACK_QUEEN;
+            board[to].piece = chosenPieceToPromoteTo;
+            System.out.println("New piece: " + board[to].piece);
         }
         //endregion
         // If a non-promotion move
@@ -302,6 +310,12 @@ public class Main {
             return squareName[index];
         }
 
+        public byte getPromotionOption() {
+            byte[] promotionOptions = { WHITE_QUEEN, WHITE_KNIGHT, WHITE_ROOK, WHITE_BISHOP, BLACK_BISHOP, BLACK_ROOK, BLACK_KNIGHT, BLACK_QUEEN };
+            int row = index / 8;
+            return promotionOptions[row];
+        }
+
         public char getPieceChar() {
             switch (this.piece) {
                 case WHITE_PAWN, BLACK_PAWN -> {
@@ -344,6 +358,9 @@ public class Main {
             g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+            System.setProperty("awt.useSystemAAFontSettings", "on");
             //endregion
 
             super.paintComponent(g);
@@ -880,10 +897,11 @@ public class Main {
 //        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         // Endgame with black winning
-        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
+//        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
 
         // Endgame with white winning
 //        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
 
+        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
     }
 }

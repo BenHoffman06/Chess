@@ -5,6 +5,7 @@ import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +32,12 @@ public class UI {
     public static boolean exitHover;
     public static boolean hideHover;
 
+    // Variables to handle promotions
+    public static boolean isPromoting = false;
+    public static Main.Square promotionSquare = null;
+    public static byte chosenPieceToPromoteTo = 0;
+    public static Rectangle[] clickablePromotionRegions = new Rectangle[4];
+
     //region Colors
     public static final Color BACKGROUND = Color.decode("#262421");
     public static final Color WHITE = Color.decode("#f0d9b5");
@@ -52,6 +59,8 @@ public class UI {
     public static final byte REMATCH_BUTTON = 104;
     public static final byte REMATCH_BUTTON_SELECTED = 105;
     public static final byte END_PANEL_BASE = 106;
+    public static final byte PROMO_BACKGROUND = 107;
+    public static final byte PROMO_BACKGROUND_UNDO_SELECTED = 108;
     //endregion
 
     //region Selection Mistake Variables
@@ -95,6 +104,8 @@ public class UI {
             pieceImages.put(REMATCH_BUTTON, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/rematchButton.png"))));
             pieceImages.put(REMATCH_BUTTON_SELECTED, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/rematchButtonSelected.png"))));
             pieceImages.put(END_PANEL_BASE, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/endPanelBase.png"))));
+            pieceImages.put(PROMO_BACKGROUND, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/promoBG.png"))));
+            pieceImages.put(PROMO_BACKGROUND_UNDO_SELECTED, ImageIO.read(Objects.requireNonNull(classLoader.getResourceAsStream("images/promoBGUndoSelected.png"))));
 
 
         } catch (IOException e) {
@@ -124,7 +135,7 @@ public class UI {
     private static void handleSquareSelection(Main.Square s) {
 
         // If no square is previously selected
-        if (selectedSquare == null) {
+        if (selectedSquare == null && s != null) {
 
             // Select this square only if it has a piece
             if (s.piece != Main.EMPTY) {
@@ -200,6 +211,32 @@ public class UI {
                         mainPanel.repaint();
                     }
                     //endregion
+                    return;
+                }
+
+                // Focus on promoting piece UI if promotion is ongoing
+                else if (isPromoting) {
+
+                    // If clicked on a location with the UI
+                    for (Rectangle r : clickablePromotionRegions) {
+                        if (r.contains(e.getPoint())) {
+
+                            // Find piece clicked on
+                            byte selectedPiece = Objects.requireNonNull(getSquareAt(e.getPoint())).getPromotionOption();
+                            System.out.println("You clicked on piece value: " + selectedPiece);
+
+                            // Process promotion to that piece
+                            promotionSquare.setPiece(selectedPiece);
+                            isPromoting = false;
+
+                            // Redraw updated board
+                            repaint();
+
+                            return;
+                        }
+                    }
+
+                    // Ignore any mouse presses until a UI selection is made
                     return;
                 }
 
@@ -282,10 +319,8 @@ public class UI {
             public void paint(Graphics g) {
                 super.paint(g);
 
-                // Existing chessboard painting logic here...
-
-                // Draw end game overlay if needed
                 if (gameEnded) {
+                    //region Draw game end UI
                     // Darken background
                     g.setColor(new Color(0, 0, 0, 150)); // Semi-transparent black
                     g.fillRect(0, 0, getWidth(), getHeight());
@@ -293,6 +328,76 @@ public class UI {
                     // Draw end game content
                     Graphics2D g2d = (Graphics2D) g;
                     drawEndGamePanel(g2d);
+
+                    //endregion
+                    return;
+                }
+
+
+                if (isPromoting) {
+                    //region Draw promotion UI
+                    System.out.println("Trying to draw promotion UI! 🤞");
+
+                    int squareSize = Main.board[0].getWidth();
+                    Point promotionPos = UI.getSquarePosition(promotionSquare.index);
+                    boolean isWhitePromotion = promotionSquare.index < 8;
+
+                    //region Draw promotion UI background
+                    BufferedImage whitePromoImg = pieceImages.get(PROMO_BACKGROUND);
+                    BufferedImage blackPromoImg = flipImageVertically(whitePromoImg, (Graphics2D) g);
+                    int height = squareSize * whitePromoImg.getHeight(this) / whitePromoImg.getWidth(this);
+
+                    if (isWhitePromotion) {
+                        g.drawImage(whitePromoImg, promotionPos.x, promotionPos.y, squareSize, height, this);
+                    } else {
+                        g.drawImage(blackPromoImg, promotionPos.x, promotionPos.y - height + squareSize, squareSize, height, this);
+                    }
+                    //endregion
+
+                    int direction = isWhitePromotion ? 1 : -1;
+
+                    // Define the order of pieces to display
+                    byte[] promotionPieces = isWhitePromotion
+                            ? new byte[] { Main.WHITE_QUEEN, Main.WHITE_KNIGHT, Main.WHITE_ROOK, Main.WHITE_BISHOP }
+                            : new byte[] { Main.BLACK_QUEEN, Main.BLACK_KNIGHT, Main.BLACK_ROOK, Main.BLACK_BISHOP };
+
+                    // Draw each piece option
+                    for (int i = 0; i < 4; i++) {
+                        // Calculate updated y location for drawing
+                        int optionY = promotionPos.y + i * direction * squareSize;
+
+                        // Add rectangle to clickable regions
+                        Rectangle rect = new Rectangle(promotionPos.x, optionY, squareSize, squareSize);
+                        clickablePromotionRegions[i] = rect;
+
+//                        // Draw white background
+//                        g.setColor(Color.WHITE);
+//                        g.fillRect(rect.x, rect.y, rect.width, rect.height);
+//
+//                        // Draw drop shadow
+//                        int[] dropShadowVals = { 100, 80, 60, 40, 30, 20, 10, 4 };
+//                        for (int pixelsAway = 0; pixelsAway < 8; pixelsAway++) {
+//                            g.setColor(new Color(BACKGROUND.getRed(), BACKGROUND.getGreen(), BACKGROUND.getBlue(), dropShadowVals[pixelsAway]));
+//                            System.out.println("Drawing with alpha: " + g.getColor());
+////                            g.drawRect(rect.x - pixelsAway, rect.y - pixelsAway, rect.width + pixelsAway * 2, rect.height + pixelsAway * 2);
+//
+//                            Graphics2D g2d = (Graphics2D) g;
+//                            float strokeWidth = 2.0f; // Adjust this value to change the line thickness
+//                            g2d.setStroke(new BasicStroke(strokeWidth));
+//
+//                            // Left outline
+//                            g2d.drawLine(rect.x - pixelsAway, rect.y, rect.x - pixelsAway, rect.y + rect.height);
+//
+//                            // Right outline
+//                            g2d.drawLine(rect.x + rect.width + pixelsAway, rect.y, rect.x + rect.width + pixelsAway, rect.y + rect.height);
+//                        }
+
+                        // Draw relevant piece
+                        g.drawImage(pieceImages.get(promotionPieces[i]), promotionPos.x, optionY, squareSize, squareSize, this);
+                    }
+
+                    //endregion
+                    return;
                 }
 
                 // Draw dragging pieces last (on top of everything)
@@ -323,6 +428,24 @@ public class UI {
                         }
                     }
                 }
+            }
+
+            private BufferedImage flipImageVertically(BufferedImage img, Graphics2D g2d) {
+                // Create an AffineTransform to flip the image vertically
+                AffineTransform transform = new AffineTransform();
+                transform.translate(0, img.getHeight(null)); // Move the image down by its height
+                transform.scale(1, -1); // Flip vertically
+
+                // Create a new BufferedImage to hold the flipped image
+                BufferedImage flippedImg = new BufferedImage(
+                        img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+
+                // Draw the original image onto the new image with the applied transformation
+                Graphics2D g2dFlipped = flippedImg.createGraphics();
+                g2dFlipped.drawImage(img, transform, null);
+                g2dFlipped.dispose();
+
+                return flippedImg;
             }
 
             private void drawEndGamePanel(Graphics2D g2d) {
@@ -458,6 +581,9 @@ public class UI {
     }
     //endregion
 
+    /**
+     * Returns the screen coordinates of the top left corner of the square for rendering
+     */
     public static Point getSquarePosition(int index) {
         int row = index / 8;
         int col = index % 8;
@@ -506,4 +632,6 @@ public class UI {
             }
         }).start();
     }
+
+
 }
