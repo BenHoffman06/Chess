@@ -1,5 +1,7 @@
 package core;
 
+import org.w3c.dom.css.Rect;
+
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
@@ -18,6 +20,9 @@ import java.util.concurrent.TimeUnit;
 
 public class UI {
 
+    public static Main.Square promotionFrom;
+    public static Main.Square promotionTo;
+
     public static boolean gameEnded = false;
     public static String endGameTitle = "";
     public static String endGameSubtitle = "";
@@ -26,11 +31,13 @@ public class UI {
     public static Rectangle rematchButtonBounds;
     public static Rectangle exitButtonBounds;
     public static Rectangle hideButtonBounds;
+    public static Rectangle promotionEscapeBounds;
 
     // Variables to see which button image should be drawn
     public static boolean rematchHover;
     public static boolean exitHover;
     public static boolean hideHover;
+    public static boolean promotionEscapeHover;
 
     // Variables to handle promotions
     public static boolean isPromoting = false;
@@ -194,7 +201,6 @@ public class UI {
 
             @Override
             public void mousePressed(MouseEvent e) {
-
                 if (gameEnded) {
                     System.out.println("Game ended, mouse pressed");
 
@@ -219,19 +225,25 @@ public class UI {
 
                     // If clicked on a location with the UI
                     for (Rectangle r : clickablePromotionRegions) {
+                        // Inside the loop where promotion regions are checked
                         if (r.contains(e.getPoint())) {
-
                             // Find piece clicked on
                             byte selectedPiece = Objects.requireNonNull(getSquareAt(e.getPoint())).getPromotionOption();
                             System.out.println("You clicked on piece value: " + selectedPiece);
 
-                            // Process promotion to that piece
-                            promotionSquare.setPiece(selectedPiece);
+                            // Process promotion by calling movePiece with stored from and to
+                            chosenPieceToPromoteTo = selectedPiece;
+                            String moveNotation = Main.movePiece(UI.promotionFrom, UI.promotionTo);
+                            Main.moves.add(new Move1(moveNotation, UI.promotionFrom, UI.promotionTo));
+
+                            // Reset promotion state
                             isPromoting = false;
+                            promotionFrom = null;
+                            promotionTo = null;
+                            promotionEscapeBounds = null;
 
                             // Redraw updated board
                             repaint();
-
                             return;
                         }
                     }
@@ -267,6 +279,19 @@ public class UI {
 
                     mainPanel.repaint();
                 }
+
+                if (isPromoting && promotionEscapeBounds != null) {
+                    Point mousePos = e.getPoint();
+                    boolean old = promotionEscapeHover;
+                    promotionEscapeHover = promotionEscapeBounds.contains(mousePos);
+
+                    // TODO repaint less often
+                    repaint();
+
+                    if (old != promotionEscapeHover) {
+                        System.out.println("Hovering: " + promotionEscapeHover);
+                    }
+                }
             }
 
             @Override
@@ -286,6 +311,19 @@ public class UI {
             public void mouseReleased(MouseEvent e) {
                 // Ignore if game is over
                 if (!Main.gameOngoing) {
+                    return;
+                }
+
+                // If clicked on undo button
+                if (promotionEscapeHover) {
+                    System.out.println("Clicked undo");
+                    UI.isPromoting = false;
+                    promotionSquare = null;
+                    UI.promotionFrom = null;
+                    UI.promotionTo = null;
+                    promotionEscapeHover = false;
+
+                    repaint();
                     return;
                 }
 
@@ -336,15 +374,24 @@ public class UI {
 
                 if (isPromoting) {
                     //region Draw promotion UI
-                    System.out.println("Trying to draw promotion UI! 🤞");
+//                    System.out.println("Trying to draw promotion UI! 🤞");
 
+                    // Calculate relevant variables
                     int squareSize = Main.board[0].getWidth();
                     Point promotionPos = UI.getSquarePosition(promotionSquare.index);
                     boolean isWhitePromotion = promotionSquare.index < 8;
-
+                    int direction = isWhitePromotion ? 1 : -1;
+                    int y = (promotionPos.y + 4 * squareSize * direction);
+                    int Undoheight = (int) (squareSize * (69.0 / 137));
+                    if (!isWhitePromotion) {
+                        y = y - Undoheight + squareSize;
+                    }
+                    promotionEscapeBounds = new Rectangle(promotionPos.x, y, squareSize, Undoheight);
+//                    System.out.println("Promotion escape bounds: " + promotionEscapeBounds);
                     //region Draw promotion UI background
-                    BufferedImage whitePromoImg = pieceImages.get(PROMO_BACKGROUND);
+                    BufferedImage whitePromoImg = promotionEscapeHover ? pieceImages.get(PROMO_BACKGROUND_UNDO_SELECTED) : pieceImages.get(PROMO_BACKGROUND);
                     BufferedImage blackPromoImg = flipImageVertically(whitePromoImg, (Graphics2D) g);
+
                     int height = squareSize * whitePromoImg.getHeight(this) / whitePromoImg.getWidth(this);
 
                     if (isWhitePromotion) {
@@ -354,15 +401,14 @@ public class UI {
                     }
                     //endregion
 
-                    int direction = isWhitePromotion ? 1 : -1;
-
                     // Define the order of pieces to display
                     byte[] promotionPieces = isWhitePromotion
                             ? new byte[] { Main.WHITE_QUEEN, Main.WHITE_KNIGHT, Main.WHITE_ROOK, Main.WHITE_BISHOP }
                             : new byte[] { Main.BLACK_QUEEN, Main.BLACK_KNIGHT, Main.BLACK_ROOK, Main.BLACK_BISHOP };
 
-                    // Draw each piece option
+                    // For each piece option:
                     for (int i = 0; i < 4; i++) {
+
                         // Calculate updated y location for drawing
                         int optionY = promotionPos.y + i * direction * squareSize;
 
@@ -370,29 +416,7 @@ public class UI {
                         Rectangle rect = new Rectangle(promotionPos.x, optionY, squareSize, squareSize);
                         clickablePromotionRegions[i] = rect;
 
-//                        // Draw white background
-//                        g.setColor(Color.WHITE);
-//                        g.fillRect(rect.x, rect.y, rect.width, rect.height);
-//
-//                        // Draw drop shadow
-//                        int[] dropShadowVals = { 100, 80, 60, 40, 30, 20, 10, 4 };
-//                        for (int pixelsAway = 0; pixelsAway < 8; pixelsAway++) {
-//                            g.setColor(new Color(BACKGROUND.getRed(), BACKGROUND.getGreen(), BACKGROUND.getBlue(), dropShadowVals[pixelsAway]));
-//                            System.out.println("Drawing with alpha: " + g.getColor());
-////                            g.drawRect(rect.x - pixelsAway, rect.y - pixelsAway, rect.width + pixelsAway * 2, rect.height + pixelsAway * 2);
-//
-//                            Graphics2D g2d = (Graphics2D) g;
-//                            float strokeWidth = 2.0f; // Adjust this value to change the line thickness
-//                            g2d.setStroke(new BasicStroke(strokeWidth));
-//
-//                            // Left outline
-//                            g2d.drawLine(rect.x - pixelsAway, rect.y, rect.x - pixelsAway, rect.y + rect.height);
-//
-//                            // Right outline
-//                            g2d.drawLine(rect.x + rect.width + pixelsAway, rect.y, rect.x + rect.width + pixelsAway, rect.y + rect.height);
-//                        }
-
-                        // Draw relevant piece
+                        // Draw piece
                         g.drawImage(pieceImages.get(promotionPieces[i]), promotionPos.x, optionY, squareSize, squareSize, this);
                     }
 
@@ -423,7 +447,7 @@ public class UI {
                                 g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
                             } else {
                                 BufferedImage img = (s.isWhite()) ? pieceImages.get(TAKEABLE_WHITE) : pieceImages.get(TAKEABLE_BLACK);
-                                g.drawImage(img, pos.x, pos.y, selectedSquare.getWidth(), selectedSquare.getHeight(), this);
+                                g.drawImage(img, pos.x, pos.y, s.getWidth(), s.getHeight(), this);
                             }
                         }
                     }

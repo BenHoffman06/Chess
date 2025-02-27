@@ -60,3 +60,8 @@
     - Checkmate detection
     - Threefold repetition
     - Algebraic notation disambiguation (e.g., "Nbd2")
+
+
+
+    Structure problems:
+movePiece and makeMove do completely different things, need renaming

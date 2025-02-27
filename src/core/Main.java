@@ -9,6 +9,8 @@ import static core.UI.*;
 
 public class Main {
 
+
+
     // Represent chessboard as 1D array of 64 squares
     public static Square[] board = new Square[64];
 
@@ -45,11 +47,37 @@ public class Main {
 
     /**
      * Attempts to call movePiece()
+     * In case of promotions: only call movePiece once piece to promote to is selected
      */
     public static void tryMovePiece(Square square1, Square square2) {
+        int from = square1.index;
+        int to = square2.index;
+
+        // Inside the promotion check in tryMovePiece
+        UI.promotionFrom = square1;
+        UI.promotionTo = square2;
+
 
         boolean canMakeMove = (accessibleSquaresOf(square1, board, true).contains(square2.index));
         if (canMakeMove) {
+
+            //region Set up promotion prompt if promoting and prompt is not already up
+
+            boolean isWhitePromotion = board[from].piece == WHITE_PAWN && to < 8;
+            boolean isBlackPromotion = board[from].piece == BLACK_PAWN && to >= 56;
+            if (!UI.isPromoting && (isWhitePromotion || isBlackPromotion)) {
+//                System.out.println("Promotion in tryMovePiece");
+                UI.isPromoting = true;
+                promotionSquare = board[to];
+                // Store the from and to squares for the promotion move
+                UI.promotionFrom = square1;
+                UI.promotionTo = square2;
+                repaint();
+                return;
+            }
+
+            //endregion
+
             // Make and display move
             String moveNotation = movePiece(square1, square2);
             UI.repaint();
@@ -147,17 +175,17 @@ public class Main {
         //region Handle promotions
         boolean isWhitePromotion = board[from].piece == WHITE_PAWN && to < 8;
         boolean isBlackPromotion = board[from].piece == BLACK_PAWN && to >= 56;
-        if (isWhitePromotion) {
-            isPromoting = true;
+        if (isWhitePromotion || isBlackPromotion) {
+            // Set promotion variables
             promotionSquare = square2;
-//            board[to].piece = chosenPieceToPromoteTo;
-//            chosenPieceToPromoteTo = 0;
-        }
-        else if (isBlackPromotion) {
-            isPromoting = true;
-            promotionSquare = square2;
-//            board[to].piece = chosenPieceToPromoteTo;
-//            chosenPieceToPromoteTo = 0;
+            isPromoting = false;
+
+            // Update pieces on board
+            board[to].piece = chosenPieceToPromoteTo;
+            board[from].piece = EMPTY;
+
+            // Reset chosen piece to promote to
+            chosenPieceToPromoteTo = 0;
         }
         //endregion
 
@@ -248,11 +276,11 @@ public class Main {
         //region Handle promotions
         if (board[from].piece == WHITE_PAWN && to < 8) {
             board[to].piece = chosenPieceToPromoteTo;
-            System.out.println("New piece: " + board[to].piece);
+//            System.out.println("New piece: " + board[to].piece);
         }
         else if (board[from].piece == BLACK_PAWN && to >= 56) {
             board[to].piece = chosenPieceToPromoteTo;
-            System.out.println("New piece: " + board[to].piece);
+//            System.out.println("New piece: " + board[to].piece);
         }
         //endregion
         // If a non-promotion move
