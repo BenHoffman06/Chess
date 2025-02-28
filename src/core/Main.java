@@ -9,8 +9,6 @@ import static core.UI.*;
 
 public class Main {
 
-
-
     // Represent chessboard as 1D array of 64 squares
     public static Square[] board = new Square[64];
 
@@ -89,6 +87,16 @@ public class Main {
             UI.handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
             System.out.println(accessibleMoves);
         }
+    }
+
+    public static void rematch() {
+        UI.gameEnded = false;
+        gameOngoing = true;
+        isWhitesMove = true;
+
+        resetBoard();
+
+        repaint();
     }
 
 
@@ -415,11 +423,15 @@ public class Main {
             }
 
             // Draw piece if NOT being dragged
-            if (piece != EMPTY && !UI.isDragging(this)) {
+            if (piece != EMPTY && !this.isDragging()) {
                 BufferedImage img = pieceImages.get(piece);
                 g.drawImage(img, 0, 0, getWidth(), getHeight(), this);
 
             }
+        }
+
+        public boolean isDragging() {
+            return (this == UI.selectedSquare && UI.beingDragged);
         }
     }
 

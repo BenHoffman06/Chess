@@ -1,5 +1,6 @@
 package core;
 
+
 public class Move1 {
     public int number; // Counts black's first move as #2, double counting
     public String notation;

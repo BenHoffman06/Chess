@@ -135,10 +135,6 @@ public class UI {
         return (s == selectedSquare);
     }
 
-    public static boolean isDragging(Main.Square s) {
-        return (s == selectedSquare && beingDragged);
-    }
-
     private static void handleSquareSelection(Main.Square s) {
 
         // If no square is previously selected
@@ -206,7 +202,7 @@ public class UI {
 
                     //region Only look for interaction on end game panel
                     if (rematchButtonBounds.contains(e.getPoint())) {
-                        rematch();
+                        Main.rematch();
                     }
                     else if (exitButtonBounds.contains(e.getPoint())) {
                         System.exit(0);
@@ -223,7 +219,7 @@ public class UI {
                 // Focus on promoting piece UI if promotion is ongoing
                 else if (isPromoting) {
 
-                    // If clicked on a location with the UI
+                    //region Handle clicking on promotion options
                     for (Rectangle r : clickablePromotionRegions) {
                         // Inside the loop where promotion regions are checked
                         if (r.contains(e.getPoint())) {
@@ -247,12 +243,13 @@ public class UI {
                             return;
                         }
                     }
+                    //endregion
 
                     // Ignore any mouse presses until a UI selection is made
                     return;
                 }
 
-                //region Handle selection/deselection
+                //region Handle square selection/deselection
 
                 Main.Square clickedSquare = getSquareAt(e.getPoint());
                 handleSquareSelection(clickedSquare);
@@ -270,45 +267,44 @@ public class UI {
             }
 
             public void mouseMoved(MouseEvent e) {
-                // Keep track of hovered buttons if on game end panel
+                //region Keep track of button hovering
+                Point mousePos = e.getPoint();
+
+                // Update game end panel hovering
                 if (gameEnded) {
-                    Point mousePos = e.getPoint();
                     rematchHover = rematchButtonBounds.contains(mousePos);
                     exitHover = exitButtonBounds.contains(mousePos);
                     hideHover = hideButtonBounds.contains(mousePos);
-
-                    mainPanel.repaint();
                 }
 
+                // Update promotion UI button hovering
                 if (isPromoting && promotionEscapeBounds != null) {
-                    Point mousePos = e.getPoint();
-                    boolean old = promotionEscapeHover;
-                    promotionEscapeHover = promotionEscapeBounds.contains(mousePos);
-
-                    // TODO repaint less often
-                    repaint();
-
-                    if (old != promotionEscapeHover) {
-                        System.out.println("Hovering: " + promotionEscapeHover);
-                    }
+                    promotionEscapeHover = promotionEscapeBounds.contains(mousePos) && isPromoting && promotionEscapeBounds != null;
                 }
+
+                // endregion
+                if (gameEnded || isPromoting) {
+                    repaint();
+                }
+
             }
 
             @Override
             public void mouseDragged(MouseEvent e) {
-                // Ignore if game is over
-                if (!Main.gameOngoing) {
-                    return;
-                }
 
+                // Update piece dragging variables
                 dragX = e.getX();
                 dragY = e.getY();
                 beingDragged = true;
+
                 repaint();
             }
 
             @Override
             public void mouseReleased(MouseEvent e) {
+                // Update being dragged
+                beingDragged = false;
+
                 // Ignore if game is over
                 if (!Main.gameOngoing) {
                     return;
@@ -317,11 +313,14 @@ public class UI {
                 // If clicked on undo button
                 if (promotionEscapeHover) {
                     System.out.println("Clicked undo");
+
+                    //region Reset promotion variables
                     UI.isPromoting = false;
                     promotionSquare = null;
                     UI.promotionFrom = null;
                     UI.promotionTo = null;
                     promotionEscapeHover = false;
+                    //endregion
 
                     repaint();
                     return;
@@ -329,14 +328,9 @@ public class UI {
 
                 // If previously selected a different, move to new point
                 Main.Square targetSquare = getSquareAt(e.getPoint());
+//                boolean
                 if (targetSquare != null && targetSquare != selectedSquare && selectedSquare != null) {
                     Main.tryMovePiece(selectedSquare, targetSquare);
-                }
-                beingDragged = false;
-
-                // If doing drag and drop, clear accessible moves after making move
-                if (selectedSquare == null || selectedSquare.isEmpty()) {
-                    Main.accessibleMoves.clear();
                 }
             }
 
@@ -378,7 +372,7 @@ public class UI {
 
                     // Calculate relevant variables
                     int squareSize = Main.board[0].getWidth();
-                    Point promotionPos = UI.getSquarePosition(promotionSquare.index);
+                    Point promotionPos = UI.getSquarePosition(promotionSquare.index); // getScreenPosition
                     boolean isWhitePromotion = promotionSquare.index < 8;
                     int direction = isWhitePromotion ? 1 : -1;
                     int y = (promotionPos.y + 4 * squareSize * direction);
@@ -425,7 +419,7 @@ public class UI {
                 }
 
                 // Draw dragging pieces last (on top of everything)
-                if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && UI.isDragging(selectedSquare)) {
+                if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && selectedSquare.isDragging()) {
                     int x = dragX - selectedSquare.getWidth() / 2;
                     int y = dragY - selectedSquare.getWidth() / 2;
                     BufferedImage img = pieceImages.get(selectedSquare.piece);
@@ -572,16 +566,6 @@ public class UI {
         gameEnded = true;
         endGameTitle = title;
         endGameSubtitle = subtitle;
-        mainPanel.repaint();
-    }
-
-    public static void rematch() {
-        gameEnded = false;
-        Main.gameOngoing = true;
-        Main.isWhitesMove = true;
-
-        Main.resetBoard();
-
         mainPanel.repaint();
     }
 
