@@ -340,7 +340,8 @@ public class UI {
                     return;
                 }
 
-                //region Draw
+                //region Draw lost pieces and material difference
+
                 // Sort lost pieces: white pieces in natural order, black pieces in reverse order.
                 Main.lostWhitePieces.sort(Byte::compare);
                 Main.lostBlackPieces.sort(Comparator.reverseOrder());
@@ -414,6 +415,7 @@ public class UI {
                     previous = piece;
                     newX += pieceWidth;
                 }
+                //endregion
 
                 if (isPromoting) {
                     //region Draw promotion UI

@@ -105,6 +105,8 @@ public class Main {
 
             // Add it to move list
             moves.add(new Move1(moveNotation, square1, square2));
+
+            System.out.println(Main.getCurrentFEN());
         }
         else {
             UI.handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
@@ -129,6 +131,7 @@ public class Main {
      * returns chess notation for move
      */
     public static String movePiece(Square square1, Square square2) {
+
         byte from = square1.index;
         byte to = square2.index;
 
@@ -405,6 +408,49 @@ public class Main {
                         "? If so you caused a empty piece to move...");
             }
         }
+
+        public char getPieceCharForFEN() {
+            switch (this.piece) {
+                case WHITE_PAWN -> {
+                    return 'P';
+                }
+                case BLACK_PAWN -> {
+                    return 'p';
+                }
+                case WHITE_KNIGHT -> {
+                    return 'N';
+                }
+                case BLACK_KNIGHT -> {
+                    return 'n';
+                }
+                case WHITE_BISHOP -> {
+                    return 'B';
+                }
+                case BLACK_BISHOP -> {
+                    return 'b';
+                }
+                case WHITE_ROOK -> {
+                    return 'R';
+                }
+                case BLACK_ROOK -> {
+                    return 'r';
+                }
+                case WHITE_QUEEN -> {
+                    return 'Q';
+                }
+                case BLACK_QUEEN -> {
+                    return 'q';
+                }
+                case WHITE_KING -> {
+                    return 'K';
+                }
+                case BLACK_KING -> {
+                    return 'k';
+                }
+                default -> throw new RuntimeException("Piece char calculation failed. Is this piece: " + piece);
+            }
+        }
+
 
         public boolean hasNotChanged() {
             for (Move1 m : moves) {
@@ -800,6 +846,48 @@ public class Main {
     }
     //endregion
 
+    /**
+     * Can take as input kingSquare which does not have a king on it, and will return false
+     */
+    public static boolean canCastle(boolean isKingside, Square kingSquare) {
+        int location = kingSquare.index;
+
+        // Return false early if king not on correct square
+        if (Math.abs(kingSquare.piece) != WHITE_KING) {
+            return false;
+        }
+
+        // Return false early if king square has changed
+        for (Move1 m : moves) {
+            if (m.square1 == kingSquare) {
+                return false;
+            }
+        }
+
+        // If rook has not moved
+        if (board[location + 3].hasNotChanged()) {
+
+            // And it is asking about kings
+            if (isKingside) {
+
+                return true;
+            }
+        }
+
+        // If rook has not moved
+        if (board[location - 4].hasNotChanged())  {
+
+            // And if it is asking about queenside
+            if (!isKingside) {
+
+                return true;
+            }
+        }
+
+        // Otherwise:
+        return false;
+    }
+
     //region Helper methods
     private static Square[] copyBoard(Square[] original, byte from, byte to) {
         Square[] copy = new Square[64];
@@ -1005,6 +1093,102 @@ public class Main {
         }
 
         return whiteMaterial - blackMaterial;
+    }
+
+    public static String getCurrentFEN() {
+        StringBuilder stringBuilder = new StringBuilder();
+
+        //region Fill in piece locations part of FEN
+        int emptyCounter = 0;
+        for (Square s : board) {
+            if (s.isEmpty()) {
+                emptyCounter++;
+            }
+            else {
+                if (emptyCounter != 0) {
+                    stringBuilder.append(emptyCounter);
+                    emptyCounter = 0;
+                }
+                stringBuilder.append(s.getPieceCharForFEN());
+            }
+
+            // After all checks, if the square is at the end of its row add a '/'
+            if (s.index % 8 == 7) {
+                if (emptyCounter != 0) {
+                    stringBuilder.append(emptyCounter);
+                    emptyCounter = 0;
+                }
+                stringBuilder.append('/');
+            }
+        }
+        stringBuilder.delete(stringBuilder.length()-1, stringBuilder.length());
+        //endregion
+
+        //region Fill in side to move part of FEN
+        stringBuilder.append(' ');
+        char sideToMoveChar = (isWhitesMove) ? 'w' : 'b';
+        stringBuilder.append(sideToMoveChar);
+        //endregion
+
+        //region Fill in castling rights part of FEN
+        stringBuilder.append(' ');
+        Square blackKingSquare = board[4];
+        Square whiteKingSquare = board[60];
+
+        boolean whiteCanCastleKingside = canCastle(true, whiteKingSquare);
+        boolean whiteCanCastleQueenside = canCastle(false, whiteKingSquare);
+        boolean blackCanCastleKingside = canCastle(true, blackKingSquare);
+        boolean blackCanCastleQueenside = canCastle(false, blackKingSquare);
+
+        if (whiteCanCastleKingside) { stringBuilder.append("K"); }
+        if (whiteCanCastleQueenside) { stringBuilder.append("Q"); }
+        if (blackCanCastleKingside) { stringBuilder.append("k"); }
+        if (blackCanCastleQueenside) { stringBuilder.append("q"); }
+
+        if (!whiteCanCastleKingside && !whiteCanCastleQueenside && !blackCanCastleKingside && !blackCanCastleQueenside) {
+            stringBuilder.append("- -");
+        }
+        else if (!whiteCanCastleKingside && !whiteCanCastleQueenside) {
+            stringBuilder.append(" -");
+        }
+        else if (!blackCanCastleKingside && !blackCanCastleQueenside) {
+            stringBuilder.append(" -");
+        }
+        //endregion
+
+        //region Add en passant targets
+        Square lastMoved = moves.getLast().square1;
+        Square lastMovedTo = moves.getLast().square2;
+        // If last moved a pawn
+        if (Math.abs(lastMovedTo.piece) == WHITE_PAWN) {
+
+            // And if that pawn moved 16 indices
+            if (Math.abs(lastMoved.index - lastMovedTo.index) == 16) {
+
+                // Add square between square1 and square2 as target
+                Square middle = board[(lastMoved.index + lastMovedTo.index) / 2];
+
+                // Append space if it doesn't create a double-space
+                if (stringBuilder.charAt(stringBuilder.length() - 1) != ' ') {
+                    stringBuilder.append(' ');
+                }
+                stringBuilder.append(middle.getSquareName());
+
+
+            }
+        }
+        //endregion
+
+        //region Add half moves
+        // TODO after implementing 50 move rule, add this to FEN
+        stringBuilder.append(" 0");
+        //endregion
+
+        //region Add fullmove number
+        stringBuilder.append(" " + moves.size() / 2);
+        //endregion
+
+        return stringBuilder.toString();
     }
 
     public static void main(String[] args) {
