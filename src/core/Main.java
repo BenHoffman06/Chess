@@ -3,6 +3,7 @@ package core;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.Array;
 import java.util.*;
 
 import static core.UI.*;
@@ -43,6 +44,26 @@ public class Main {
     public static final byte EMPTY = 0; // Represents an empty square on the board
     //endregion
 
+    // Lost pieces lists
+    public static ArrayList<Byte> lostWhitePieces = new ArrayList<>();
+    public static ArrayList<Byte> lostBlackPieces = new ArrayList<>();
+
+    public static HashMap<Byte, Integer> pieceValues = new HashMap<>();
+
+    static {
+        pieceValues.put(WHITE_PAWN, 1);
+        pieceValues.put(WHITE_KNIGHT, 3);
+        pieceValues.put(WHITE_BISHOP, 3);
+        pieceValues.put(WHITE_ROOK, 5);
+        pieceValues.put(WHITE_QUEEN, 9);
+
+        pieceValues.put(BLACK_PAWN, 1);
+        pieceValues.put(BLACK_KNIGHT, 3);
+        pieceValues.put(BLACK_BISHOP, 3);
+        pieceValues.put(BLACK_ROOK, 5);
+        pieceValues.put(BLACK_QUEEN, 9);
+    }
+
     /**
      * Attempts to call movePiece()
      * In case of promotions: only call movePiece once piece to promote to is selected
@@ -55,6 +76,8 @@ public class Main {
         UI.promotionFrom = square1;
         UI.promotionTo = square2;
 
+        // Reset accessible moves
+        accessibleMoves.clear();
 
         boolean canMakeMove = (accessibleSquaresOf(square1, board, true).contains(square2.index));
         if (canMakeMove) {
@@ -93,6 +116,7 @@ public class Main {
         UI.gameEnded = false;
         gameOngoing = true;
         isWhitesMove = true;
+        accessibleMoves.clear();
 
         resetBoard();
 
@@ -123,7 +147,7 @@ public class Main {
         }
 
         if (square2.piece != EMPTY) {
-            UI.handleCapture();
+            handleCapture(square2.piece);
             takesString = "x";
         }
 
@@ -209,7 +233,7 @@ public class Main {
             Square behind = board[square2.index + Integer.signum(square1.piece) * 8];
             behind.piece = EMPTY;
             takesString = "x";
-            UI.handleCapture();
+            handleCapture(square2.piece);
         }
         //endregion
 
@@ -246,6 +270,11 @@ public class Main {
         return false; // if there does not exist a piece of the right color which can move
     }
 
+    public static void handleCapture(byte piece) {
+        ArrayList<Byte> capturedPiecesList = (piece > 0) ? lostWhitePieces : lostBlackPieces;
+        capturedPiecesList.add(piece);
+        UI.playSound("sounds/Capture.wav");
+    }
     /**
      * Returns 0 if stalemated, 1 if checkmated, -1 if pieces can move
      */
@@ -633,9 +662,9 @@ public class Main {
                 int[] knightMoves = {-17, -15, -10, -6, 6, 10, 15, 17};
 
                 // For all possible knight moves
-                for (int move : knightMoves) {
+                for (int offset : knightMoves) {
 
-                    int target = location + move;
+                    int target = location + offset;
 
                     // If target is on the board
                     if (target >= 0 && target < 64) { // Ensure the target is on the board
@@ -888,15 +917,44 @@ public class Main {
             isWhitesMove = false;
         }
 
-        // Print abnormal boards
+        // Handle abnormal boards
         if (!fen.equals("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
+            // Print them
             printBoard();
+
+            //region Update lost pieces
+            byte[] pieceConstants = {Main.WHITE_PAWN, Main.WHITE_KNIGHT, Main.WHITE_BISHOP, Main.WHITE_ROOK, Main.WHITE_QUEEN, Main.WHITE_KING, Main.BLACK_PAWN, Main.BLACK_KNIGHT, Main.BLACK_BISHOP, Main.BLACK_ROOK, Main.BLACK_QUEEN, Main.BLACK_KING};
+            int[] pieceInitialCounts = {8, 2, 2, 2, 1, 1, 8, 2, 2, 2, 1, 1};
+
+            for (int i = 0; i < pieceConstants.length; i++) {
+                byte piece = pieceConstants[i];
+                int actualCount = getPieceCount(piece);
+                int supposedCount = pieceInitialCounts[i];
+                int countLost = supposedCount - actualCount;
+
+                // Update lost pieces arrayList
+                for (int j = 0; j < countLost; j++) {
+                    ArrayList<Byte> capturedPiecesList = (piece > 0) ? lostWhitePieces : lostBlackPieces;
+                    capturedPiecesList.add(piece);
+                }
+            }
+            //endregion
         }
 
         // Repaint screen
         UI.repaint();
     }
     //endregion
+
+    private static int getPieceCount(byte piece) {
+        int count = 0;
+        for (Square s : board) {
+            if (s.piece == piece) {
+                count++;
+            }
+        }
+        return count;
+    }
 
     public static void printBoard() {
         for (int i = 0; i < board.length; i++) {
@@ -928,13 +986,32 @@ public class Main {
 
     public static void resetBoard() {
         setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        lostWhitePieces.clear();
+        lostBlackPieces.clear();
+    }
+
+    public static int getMaterialDiff() {
+        int whiteMaterial = 0;
+        int blackMaterial = 0;
+
+        for (byte piece : lostWhitePieces) {
+            int value = pieceValues.get(piece);
+            whiteMaterial += value;
+        }
+
+        for (byte piece : lostBlackPieces) {
+            int value = pieceValues.get(piece);
+            blackMaterial += value;
+        }
+
+        return whiteMaterial - blackMaterial;
     }
 
     public static void main(String[] args) {
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
-//        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         // Endgame with black winning
 //        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
@@ -942,6 +1019,8 @@ public class Main {
         // Endgame with white winning
 //        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
 
-        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
+//        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
     }
+
+
 }

@@ -1,7 +1,5 @@
 package core;
 
-import org.w3c.dom.css.Rect;
-
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
@@ -11,6 +9,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -20,23 +19,13 @@ import java.util.concurrent.TimeUnit;
 
 public class UI {
 
+    //region Implemented global static variables
     public static Main.Square promotionFrom;
     public static Main.Square promotionTo;
 
     public static boolean gameEnded = false;
-    public static String endGameTitle = "";
-    public static String endGameSubtitle = "";
 
-    // Add these to track button positions
-    public static Rectangle rematchButtonBounds;
-    public static Rectangle exitButtonBounds;
-    public static Rectangle hideButtonBounds;
     public static Rectangle promotionEscapeBounds;
-
-    // Variables to see which button image should be drawn
-    public static boolean rematchHover;
-    public static boolean exitHover;
-    public static boolean hideHover;
     public static boolean promotionEscapeHover;
 
     // Variables to handle promotions
@@ -119,6 +108,8 @@ public class UI {
             throw new RuntimeException("Error loading piece images: " + e.getMessage(), e);
         }
     }
+
+    public static EndGamePanel endGamePanel = new EndGamePanel();
 //endregion
 
     //region Mouse Interaction Variables
@@ -130,12 +121,14 @@ public class UI {
     // UI Components
     public static JPanel mainPanel;
 
+    //endregion
+
     //region Square Selection and Dragging Logic
     public static boolean isSelecting(Main.Square s) {
         return (s == selectedSquare);
     }
 
-    private static void handleSquareSelection(Main.Square s) {
+    private static void select(Main.Square s) {
 
         // If no square is previously selected
         if (selectedSquare == null && s != null) {
@@ -170,10 +163,6 @@ public class UI {
     }
     //endregion
 
-    public static void handleCapture() {
-        playSound("sounds/Capture.wav");
-    }
-
     public static void handleInvalidMoveTo(Main.Square s) {
         UI.selectedSquare = null;
 
@@ -197,22 +186,9 @@ public class UI {
 
             @Override
             public void mousePressed(MouseEvent e) {
-                if (gameEnded) {
-                    System.out.println("Game ended, mouse pressed");
 
-                    //region Only look for interaction on end game panel
-                    if (rematchButtonBounds.contains(e.getPoint())) {
-                        Main.rematch();
-                    }
-                    else if (exitButtonBounds.contains(e.getPoint())) {
-                        System.exit(0);
-                    }
-                    // Add this condition for hide button
-                    else if (hideButtonBounds.contains(e.getPoint())) {
-                        gameEnded = false;
-                        mainPanel.repaint();
-                    }
-                    //endregion
+                if (gameEnded) {
+                    endGamePanel.handleMouseClick(e.getPoint());
                     return;
                 }
 
@@ -252,7 +228,7 @@ public class UI {
                 //region Handle square selection/deselection
 
                 Main.Square clickedSquare = getSquareAt(e.getPoint());
-                handleSquareSelection(clickedSquare);
+                select(clickedSquare);
 
                 // If not selecting square, clear accessible moves
                 if (selectedSquare == null || selectedSquare.isEmpty()) {
@@ -272,9 +248,8 @@ public class UI {
 
                 // Update game end panel hovering
                 if (gameEnded) {
-                    rematchHover = rematchButtonBounds.contains(mousePos);
-                    exitHover = exitButtonBounds.contains(mousePos);
-                    hideHover = hideButtonBounds.contains(mousePos);
+                    endGamePanel.handleMouseMove(mousePos);
+                    repaint();
                 }
 
                 // Update promotion UI button hovering
@@ -359,12 +334,86 @@ public class UI {
 
                     // Draw end game content
                     Graphics2D g2d = (Graphics2D) g;
-                    drawEndGamePanel(g2d);
+                    endGamePanel.draw(g2d, getWidth(), getHeight());
 
                     //endregion
                     return;
                 }
 
+                //region Draw
+                // Sort lost pieces: white pieces in natural order, black pieces in reverse order.
+                Main.lostWhitePieces.sort(Byte::compare);
+                Main.lostBlackPieces.sort(Comparator.reverseOrder());
+
+                // Calculate variables for displaying material difference
+                int materialDiff = Main.getMaterialDiff();
+                boolean materialOnWhiteSide = (materialDiff > 0);
+
+                // Calculate board metrics for dynamic sizing
+                Rectangle boardBounds = getBoardBounds();
+                int pieceWidth = boardBounds.width / 24;
+                int heightOffset = (int) (boardBounds.width / 2.2);
+                byte previous = 0;
+                int boardRightEdge = boardBounds.x + boardBounds.width;
+
+                // --- Draw white lost pieces ---
+                // Start drawing to the right of the board, vertically centered using heightOffset.
+                Point whiteStart = new Point(boardRightEdge + boardBounds.width / 16, (boardBounds.y + heightOffset) - (pieceWidth / 2));
+                int newX = whiteStart.x;
+                for (int i = 0; i < Main.lostWhitePieces.size(); i++) {
+                    byte piece = Main.lostWhitePieces.get(i);
+                    // If the same type as the previous piece, adjust the x position for a tighter grouping.
+                    if (previous == piece) {
+                        newX -= (int)(pieceWidth / 1.5);
+                    }
+                    Rectangle bounds = new Rectangle(newX, whiteStart.y, pieceWidth, pieceWidth);
+                    g.drawImage(pieceImages.get(piece), bounds.x, bounds.y, bounds.width, bounds.height, this);
+                    previous = piece;
+                    newX += pieceWidth;
+                }
+                if (materialOnWhiteSide && materialDiff != 0) {
+                    g.setColor(Color.WHITE);
+                    g.drawString("+" + materialDiff, newX, whiteStart.y + pieceWidth);
+                }
+
+                // --- Draw black lost pieces ---
+                // First, create a white background for each slot.
+                Point blackStart = new Point(boardRightEdge + boardBounds.width / 16,
+                        (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
+                newX = blackStart.x;
+                for (int i = 0; i < Main.lostBlackPieces.size(); i++) {
+                    byte piece = Main.lostBlackPieces.get(i);
+                    if (previous == piece) {
+                        newX -= (int)(pieceWidth / 1.5);
+                    }
+                    Rectangle bounds = new Rectangle(newX, blackStart.y, pieceWidth, pieceWidth);
+                    g.setColor(Color.WHITE);
+                    g.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+                    previous = piece;
+                    newX += pieceWidth;
+                }
+
+                if (!materialOnWhiteSide && materialDiff != 0) {
+                    g.drawString("+" + -1 * materialDiff, newX, blackStart.y + pieceWidth);
+                }
+
+
+                // Then, draw the black pieces over the background.
+                // Reset positioning variables for a clean draw pass.
+                previous = 0;
+                blackStart = new Point(boardRightEdge + boardBounds.width / 16,
+                        (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
+                newX = blackStart.x;
+                for (int i = 0; i < Main.lostBlackPieces.size(); i++) {
+                    byte piece = Main.lostBlackPieces.get(i);
+                    if (previous == piece) {
+                        newX -= (int)(pieceWidth / 1.5);
+                    }
+                    Rectangle bounds = new Rectangle(newX, blackStart.y, pieceWidth, pieceWidth);
+                    g.drawImage(pieceImages.get(piece), bounds.x, bounds.y, bounds.width, bounds.height, this);
+                    previous = piece;
+                    newX += pieceWidth;
+                }
 
                 if (isPromoting) {
                     //region Draw promotion UI
@@ -465,49 +514,6 @@ public class UI {
 
                 return flippedImg;
             }
-
-            private void drawEndGamePanel(Graphics2D g2d) {
-                int squareSize = Main.board[0].getWidth();
-                int panelWidth = (int)(squareSize * 3.25);
-                int panelHeight = (int)(panelWidth * (334.0/323.0));
-                int x = (getWidth() - panelWidth) / 2;
-                int y = (getHeight() - panelHeight) / 2;
-
-                // Draw base panel
-                g2d.drawImage(pieceImages.get(END_PANEL_BASE), x, y, panelWidth, panelHeight, this);
-
-                // Calculate bounding boxes and trust they're right
-                rematchButtonBounds = new Rectangle(x + (int)(27.0/323.0 * panelWidth), y + (int)(164.0/334.0 * panelHeight), (int)(269.0/323.0 * panelWidth), (int)(64.0/334.0 * panelHeight));
-                exitButtonBounds = new Rectangle(rematchButtonBounds.x,  y + (int)(238.0/334.0 * panelHeight),rematchButtonBounds.width,rematchButtonBounds.height);
-                hideButtonBounds = new Rectangle(x + (int)(295.0/323.0 * panelWidth),y + (int)(16.0/334.0 * panelHeight),(int)(16.0/323.0 * panelWidth),(int)(16.0/323.0 * panelWidth));
-
-                // Get appropriate button sprites
-                BufferedImage hideImg = hideHover ? pieceImages.get(HIDE_BUTTON_SELECTED) : pieceImages.get(HIDE_BUTTON);
-                BufferedImage rematchImg = rematchHover ? pieceImages.get(REMATCH_BUTTON_SELECTED) : pieceImages.get(REMATCH_BUTTON);
-                BufferedImage exitImg = exitHover ? pieceImages.get(EXIT_BUTTON_SELECTED) : pieceImages.get(EXIT_BUTTON);
-
-                // Draw buttons using bounds
-                g2d.drawImage(hideImg, hideButtonBounds.x, hideButtonBounds.y, hideButtonBounds.width, hideButtonBounds.height, this);
-                g2d.drawImage(rematchImg, rematchButtonBounds.x, rematchButtonBounds.y, rematchButtonBounds.width, rematchButtonBounds.height, this);
-                g2d.drawImage(exitImg, exitButtonBounds.x, exitButtonBounds.y, exitButtonBounds.width, exitButtonBounds.height, this);
-
-                // Scale fonts
-                int titleFontSize = (int)(panelHeight * (24.0/334.0));
-                int subTitleFontSize = (int)(panelHeight * (14.0/334.0));
-
-                g2d.setFont(new Font("Arial", Font.BOLD, titleFontSize));
-                drawCenteredString(g2d, endGameTitle, new Rectangle(x, y + (int)(panelHeight * 0.06), panelWidth, (int)(panelHeight * 0.09)));
-
-                g2d.setFont(new Font("Arial", Font.PLAIN, subTitleFontSize));
-                drawCenteredString(g2d, endGameSubtitle, new Rectangle(x, y + (int)(panelHeight * 0.15), panelWidth, (int)(panelHeight * 0.06)));
-            }
-            private void drawCenteredString(Graphics g, String text, Rectangle rect) {
-                FontMetrics metrics = g.getFontMetrics();
-                int x = rect.x + (rect.width - metrics.stringWidth(text)) / 2;
-                int y = rect.y + ((rect.height - metrics.getHeight()) / 2) + metrics.getAscent();
-                g.setColor(Color.WHITE);
-                g.drawString(text, x, y);
-            }
         };
 
         // Add mouse listeners
@@ -521,7 +527,7 @@ public class UI {
         JFrame frame = new JFrame("Chess");
         frame.setContentPane(mainPanel);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(800, 550);
+        frame.setSize(1000, 550);
         frame.setLocationRelativeTo(null);
 
         // Fill board with squares
@@ -561,34 +567,40 @@ public class UI {
         mainPanel.repaint();
     }
 
-    // Modified summonEndGamePanel
+    // Modify summonEndGamePanel
     public static void summonEndGamePanel(String title, String subtitle) {
         gameEnded = true;
-        endGameTitle = title;
-        endGameSubtitle = subtitle;
+        endGamePanel.setTitle(title);
+        endGamePanel.setSubtitle(subtitle);
         mainPanel.repaint();
     }
 
     private static void resizeSquares(JPanel panel) {
-        int width = panel.getWidth();
-        int height = panel.getHeight();
-        int size = Math.min(width, height) / 8;
-
-        int startX = (width - size * 8) / 2;
-        int startY = (height - size * 8) / 2;
+        Rectangle board = getBoardBounds();
+        int squareSize = Math.min(board.width, board.height) / 8;
 
         for (int i = 0; i < 64; i++) {
             int row = i / 8;
             int col = i % 8;
             Component square = panel.getComponent(i);
-            square.setBounds(startX + col * size, startY + row * size, size, size);
+            square.setBounds(board.x + col * squareSize, board.y + row * squareSize, squareSize, squareSize);
         }
 
         // Repaint only the chessboard area
-        panel.repaint(startX, startY, size * 8, size * 8);
+        panel.repaint(board.x, board.y, board.width, board.height);
     }
     //endregion
 
+    public static Rectangle getBoardBounds() {
+        int width = mainPanel.getWidth();
+        int height = mainPanel.getHeight();
+        int size = Math.min(width, height) / 8;
+
+        int startX = (width - size * 8) / 2;
+        int startY = (height - size * 8) / 2;
+
+        return new Rectangle(startX, startY, size * 8, size * 8);
+    }
     /**
      * Returns the screen coordinates of the top left corner of the square for rendering
      */
