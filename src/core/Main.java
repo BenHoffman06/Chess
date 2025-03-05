@@ -3,6 +3,7 @@ package core;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.*;
 
@@ -12,6 +13,8 @@ public class Main {
 
     // Represent chessboard as 1D array of 64 squares
     public static Square[] board = new Square[64];
+
+    public static Square enPassantTarget = null;
 
     //region Game State
     public static boolean isWhitesMove = true; // Tracks whose turn it is (true = White's turn, false = Black's turn)
@@ -64,6 +67,23 @@ public class Main {
         pieceValues.put(BLACK_QUEEN, 9);
     }
 
+    //region enPassantTarget Access Methods
+    public static void setEnPassantTarget(Square s) {
+//        System.out.println("New En Passant Target: " + s.getSquareName());
+        enPassantTarget = s;
+    }
+
+    public static void resetEnPassantTarget() {
+//        System.out.println("En Passant Target reset");
+        enPassantTarget = null;
+    }
+
+    public static Square getEnPassantTarget() {
+//        System.out.println("Requested en passant target");
+        return enPassantTarget;
+    }
+    //endregion
+
     /**
      * Attempts to call movePiece()
      * In case of promotions: only call movePiece once piece to promote to is selected
@@ -107,10 +127,22 @@ public class Main {
             moves.add(new Move1(moveNotation, square1, square2));
 
             System.out.println(Main.getCurrentFEN());
+            printBestMove();
+
         }
         else {
             UI.handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
             System.out.println(accessibleMoves);
+        }
+    }
+
+    public static void printBestMove() {
+        try {
+            String[] result = Stockfish.getBestMoveWithEvaluation(Main.getCurrentFEN(), 14);
+            System.out.println("bzz bzz, best move is: " + result[0] + "\t\t Eval: " + result[1]);
+        }
+        catch (IOException e) {
+            System.out.println("Error getting stockfish eval" + e);
         }
     }
 
@@ -226,17 +258,20 @@ public class Main {
 
         //region Handle en-passant
 
-        // isEnPassant if pawn is moving diagonally and square2 is empty
-        boolean isPawnMove = Math.abs(square1.piece) == WHITE_PAWN;
-        boolean isDiagonal = Math.abs(from - to) % 8 != 0;
-        boolean isEnPassant = square2.isEmpty() && isPawnMove && isDiagonal;
-
-        if (isEnPassant) {
-            // Remove piece from behind square2
+        if (square2.equals(getEnPassantTarget())) {
             Square behind = board[square2.index + Integer.signum(square1.piece) * 8];
             behind.piece = EMPTY;
             takesString = "x";
-            handleCapture(square2.piece);
+            handleCapture((byte) (square1.piece * -1));
+        }
+        //endregion
+
+        //region Update en passant targets if pawn moved two squares
+        if (Math.abs(square1.piece) == WHITE_PAWN && Math.abs(from - to) == 16) {
+            int enPassantSquareIndex = (from + to) / 2;
+            setEnPassantTarget(board[enPassantSquareIndex]);
+        } else {
+            resetEnPassantTarget();
         }
         //endregion
 
@@ -274,6 +309,9 @@ public class Main {
     }
 
     public static void handleCapture(byte piece) {
+        if (piece == EMPTY) {
+            System.out.println("Cannot capture an empty piece!!");
+        }
         ArrayList<Byte> capturedPiecesList = (piece > 0) ? lostWhitePieces : lostBlackPieces;
         capturedPiecesList.add(piece);
         UI.playSound("sounds/Capture.wav");
@@ -329,6 +367,21 @@ public class Main {
         }
         // Remove piece which moved from its original square
         board[from].piece = EMPTY;
+
+        //region Update en passant targets
+
+        boolean pawnJustMoved = Math.abs(board[to].piece) == WHITE_PAWN;
+        boolean moved16Indices = Math.abs(from - to) == 16;
+
+        Square newEnPassantTarget = (pawnJustMoved && moved16Indices) ? board[(from + to) / 2] : null;
+        if (newEnPassantTarget != null) {
+            setEnPassantTarget(newEnPassantTarget);
+        }
+        else {
+            resetEnPassantTarget();
+        }
+        //endregion
+
     }
 
     public static class Square extends JPanel {
@@ -365,17 +418,31 @@ public class Main {
         }
 
         private String getSquareName() {
-            String[] squareName = {
-                    "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
-                    "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
-                    "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
-                    "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5",
-                    "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
-                    "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
-                    "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
-                    "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
-            };
             return squareName[index];
+        }
+
+        private static String[] squareName = {
+                "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
+                "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
+                "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
+                "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5",
+                "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
+                "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
+                "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
+                "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
+        };
+
+        public static Square convertStringToSquare(String s) {
+            s.trim();
+            for (int i = 0; i < squareName.length; i++) {
+                String name = squareName[i];
+                if (name.equals(s)) {
+                    System.out.println("Found " + name);
+                    return board[i];
+                }
+            }
+            System.out.println("returning null for " + s);
+            return null;
         }
 
         public byte getPromotionOption() {
@@ -522,10 +589,22 @@ public class Main {
         if (checkForChecks) {
             // Verify each move doesn't leave king in check
             for (Byte move : rawMoves) {
+                // Save the current enPassantTarget
+                Square originalEnPassant = getEnPassantTarget();
+
                 Square[] simulatedBoard = copyBoard(board, location, move);
                 makeMove(simulatedBoard, location, move);
-                if (!isKingInCheck(simulatedBoard, piece > 0)) {
+                boolean isInCheck = isKingInCheck(simulatedBoard, piece > 0);
 
+                // Restore enPassantTarget after simulation
+                if (originalEnPassant != null) {
+                    setEnPassantTarget(originalEnPassant);
+                }
+                else {
+                    resetEnPassantTarget();
+                }
+
+                if (!isInCheck) {
 
                     // If castling:
                     int diff = move - location;
@@ -604,10 +683,10 @@ public class Main {
                     }
 
                     // If there's a black pawn to the left
-                    if (leftSquare.piece == BLACK_PAWN && moves.size() > 1) {
+                    if (leftSquare.piece == BLACK_PAWN) {
 
-                        // And if the pawn just moved 16 indices
-                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == leftSquare) {
+                        // And if the space behind it is an En Passant Target
+                        if (upperLeftSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the upper left
                             byteMoves.add((byte) (location - 9));
@@ -628,10 +707,10 @@ public class Main {
                     }
 
                     // If there's a black pawn to the right
-                    if (rightSquare.piece == BLACK_PAWN && moves.size() > 1) {
+                    if (rightSquare.piece == BLACK_PAWN) {
 
-                        // And if the pawn just moved 16 indices
-                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == rightSquare) {
+                        // And if the space behind it is an En Passant Target
+                        if (upperRightSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the upper right
                             byteMoves.add((byte) (location - 7));
@@ -669,10 +748,10 @@ public class Main {
                     }
 
                     // If there's a white pawn to the left
-                    if (leftSquare.piece == WHITE_PAWN && moves.size() > 1) {
+                    if (leftSquare.piece == WHITE_PAWN) {
 
-                        // And if the pawn just moved 16 indices
-                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == leftSquare) {
+                        // And if the space behind it is an En Passant Target
+                        if (lowerLeftSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the lower left
                             byteMoves.add((byte) (location + 7));
@@ -693,11 +772,10 @@ public class Main {
                     }
 
                     // If there's a white pawn to the right
-                    if (rightSquare.piece == WHITE_PAWN && moves.size() > 1) {
+                    if (rightSquare.piece == WHITE_PAWN) {
 
-                        // And if the pawn just moved 16 indices
-                        if (moves.getLast().getDistance() == 16 && moves.getLast().square2 == rightSquare) {
-
+                        // And if the space behind it is an En Passant Target
+                        if (lowerRightSquare.equals(getEnPassantTarget()))  {
                             // The pawn can capture diagonally to the lower right
                             byteMoves.add((byte) (location + 9));
                         }
@@ -1000,15 +1078,38 @@ public class Main {
             location++;
         }
 
+        String[] fenSections = fen.split(" ");
+
+        // If FEN only has one section, we should not change anything else and return early
+        if (fenSections.length == 1) {
+            return;
+        }
+
         // Set black to move if specified
-        if (fen.contains(" b")) {
+        if (fenSections[1].contains("b")) {
             isWhitesMove = false;
         }
+
+        //region Get FEN String
+        // if 3rd to last section has an alphabetic character that's the en passant-able pawn
+        String thirdToLastSection = fenSections[fenSections.length - 3];
+        if (thirdToLastSection.chars().anyMatch(Character::isLowerCase)) {
+            Square newEnPassantTarget = Square.convertStringToSquare(thirdToLastSection);
+            if (newEnPassantTarget != null) {
+                setEnPassantTarget(newEnPassantTarget);
+            }
+            else {
+                resetEnPassantTarget();
+            }
+        }
+
+
+        //endregion
 
         // Handle abnormal boards
         if (!fen.equals("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
             // Print them
-            printBoard();
+//            printBoard();
 
             //region Update lost pieces
             byte[] pieceConstants = {Main.WHITE_PAWN, Main.WHITE_KNIGHT, Main.WHITE_BISHOP, Main.WHITE_ROOK, Main.WHITE_QUEEN, Main.WHITE_KING, Main.BLACK_PAWN, Main.BLACK_KNIGHT, Main.BLACK_BISHOP, Main.BLACK_ROOK, Main.BLACK_QUEEN, Main.BLACK_KING};
@@ -1096,6 +1197,7 @@ public class Main {
     }
 
     public static String getCurrentFEN() {
+        // TODO make this actually consistently work
         StringBuilder stringBuilder = new StringBuilder();
 
         //region Fill in piece locations part of FEN
@@ -1148,34 +1250,16 @@ public class Main {
         if (!whiteCanCastleKingside && !whiteCanCastleQueenside && !blackCanCastleKingside && !blackCanCastleQueenside) {
             stringBuilder.append("- -");
         }
-        else if (!whiteCanCastleKingside && !whiteCanCastleQueenside) {
-            stringBuilder.append(" -");
-        }
-        else if (!blackCanCastleKingside && !blackCanCastleQueenside) {
+        else {
             stringBuilder.append(" -");
         }
         //endregion
 
         //region Add en passant targets
-        Square lastMoved = moves.getLast().square1;
-        Square lastMovedTo = moves.getLast().square2;
-        // If last moved a pawn
-        if (Math.abs(lastMovedTo.piece) == WHITE_PAWN) {
-
-            // And if that pawn moved 16 indices
-            if (Math.abs(lastMoved.index - lastMovedTo.index) == 16) {
-
-                // Add square between square1 and square2 as target
-                Square middle = board[(lastMoved.index + lastMovedTo.index) / 2];
-
-                // Append space if it doesn't create a double-space
-                if (stringBuilder.charAt(stringBuilder.length() - 1) != ' ') {
-                    stringBuilder.append(' ');
-                }
-                stringBuilder.append(middle.getSquareName());
-
-
-            }
+        Square ePTarget = getEnPassantTarget();
+        if (ePTarget != null) {
+            stringBuilder.append(' ');
+            stringBuilder.append(ePTarget);
         }
         //endregion
 
@@ -1195,7 +1279,7 @@ public class Main {
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
-        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+//        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         // Endgame with black winning
 //        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
@@ -1204,6 +1288,12 @@ public class Main {
 //        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
 
 //        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
+        setBoardFromFEN("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
+        System.out.println("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
+        System.out.println(Main.getCurrentFEN());
+        printBestMove();
+//        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
+
     }
 
 
