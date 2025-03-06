@@ -4,7 +4,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.*;
 
 import static core.UI.*;
@@ -22,7 +21,7 @@ public class Main {
     //endregion
 
     //region Moves
-    public static ArrayList<Move1> moves = new ArrayList<>(); // Stores all moves made in the game
+    public static ArrayList<Move> moves = new ArrayList<>(); // Stores all moves made in the game
     public static ArrayList<Byte> accessibleMoves = new ArrayList<>(); // Stores accessible squares (their index) for a selected piece
     //endregion
 
@@ -124,15 +123,15 @@ public class Main {
             UI.repaint();
 
             // Add it to move list
-            moves.add(new Move1(moveNotation, square1, square2));
+            moves.add(new Move(moveNotation, square1, square2));
 
-            System.out.println(Main.getCurrentFEN());
-            printBestMove();
-
+//            System.out.println(Main.getCurrentFEN());
+//            printBestMove();
+            Stockfish.tryPlay(12);
         }
         else {
-            UI.handleInvalidMoveTo(square2, "Move invalid since it isn't in accessibleSquares");
-            System.out.println(accessibleMoves);
+            UI.handleInvalidMoveTo(square2);
+//            System.out.println(accessibleMoves);
         }
     }
 
@@ -437,7 +436,6 @@ public class Main {
             for (int i = 0; i < squareName.length; i++) {
                 String name = squareName[i];
                 if (name.equals(s)) {
-                    System.out.println("Found " + name);
                     return board[i];
                 }
             }
@@ -520,7 +518,7 @@ public class Main {
 
 
         public boolean hasNotChanged() {
-            for (Move1 m : moves) {
+            for (Move m : moves) {
                 // If square has been moved to or from, it has changed
                 if (index == m.square1.index || index == m.square2.index) {
                     return false;
@@ -936,7 +934,7 @@ public class Main {
         }
 
         // Return false early if king square has changed
-        for (Move1 m : moves) {
+        for (Move m : moves) {
             if (m.square1 == kingSquare) {
                 return false;
             }
@@ -1197,7 +1195,6 @@ public class Main {
     }
 
     public static String getCurrentFEN() {
-        // TODO make this actually consistently work
         StringBuilder stringBuilder = new StringBuilder();
 
         //region Fill in piece locations part of FEN
@@ -1255,21 +1252,31 @@ public class Main {
         }
         //endregion
 
-        //region Add en passant targets
+        //region Add en passant targets only if an en passant could be performed
         Square ePTarget = getEnPassantTarget();
+
         if (ePTarget != null) {
-            stringBuilder.append(' ');
-            stringBuilder.append(ePTarget);
+            Square left = board[ePTarget.index - 1];
+            Square right = board[ePTarget.index - 1];
+
+            byte enemyPawn = isWhitesMove ? WHITE_PAWN : BLACK_PAWN;
+
+            boolean enPassPossible = left.piece == enemyPawn || right.piece == enemyPawn;
+
+            if (enPassPossible) {
+                stringBuilder.append(' ');
+                stringBuilder.append(ePTarget.getSquareName());
+            }
         }
         //endregion
 
         //region Add half moves
-        // TODO after implementing 50 move rule, add this to FEN
+        // TODO after implementing 50 move rule, add it to FEN
         stringBuilder.append(" 0");
         //endregion
 
-        //region Add fullmove number
-        stringBuilder.append(" " + moves.size() / 2);
+        //region Add full-move number
+        stringBuilder.append(" ").append(1 + moves.size() / 2);
         //endregion
 
         return stringBuilder.toString();
@@ -1279,7 +1286,7 @@ public class Main {
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
-//        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        setBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         // Endgame with black winning
 //        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
@@ -1288,10 +1295,9 @@ public class Main {
 //        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
 
 //        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
-        setBoardFromFEN("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
-        System.out.println("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
-        System.out.println(Main.getCurrentFEN());
-        printBestMove();
+//        setBoardFromFEN("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
+        Stockfish.isPlaying = true;
+        Stockfish.isWhite = false;
 //        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
 
     }

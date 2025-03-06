@@ -206,7 +206,7 @@ public class UI {
                             // Process promotion by calling movePiece with stored from and to
                             chosenPieceToPromoteTo = selectedPiece;
                             String moveNotation = Main.movePiece(UI.promotionFrom, UI.promotionTo);
-                            Main.moves.add(new Move1(moveNotation, UI.promotionFrom, UI.promotionTo));
+                            Main.moves.add(new Move(moveNotation, UI.promotionFrom, UI.promotionTo));
 
                             // Reset promotion state
                             isPromoting = false;
