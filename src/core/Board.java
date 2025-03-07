@@ -3,6 +3,7 @@ package core;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Collections;
 
 import static core.Main.*;
 import static core.UI.*;
@@ -32,8 +33,11 @@ public class Board {
     // Turn to move
     public boolean isWhitesMove = true;
 
+    public int halfMoveCounter = 0;
+
     // En passant handling
     public Square enPassantTarget = null;
+
     //endregion
 
     //region Initialization and Setup
@@ -159,7 +163,7 @@ public class Board {
             isWhitesMove = false;
         }
 
-        //region Get FEN String
+        //region Advanced FEN handling
         // if 3rd to last section has an alphabetic character that's the en passant-able pawn
         String thirdToLastSection = fenSections[fenSections.length - 3];
         if (thirdToLastSection.chars().anyMatch(Character::isLowerCase)) {
@@ -171,6 +175,10 @@ public class Board {
                 resetEnPassantTarget();
             }
         }
+
+        // Parse 2nd to last section to halfMoveCounter
+        String secondToLastSection = fenSections[fenSections.length - 2];
+        halfMoveCounter = Integer.parseInt(secondToLastSection);
         //endregion
 
         // Handle abnormal FEN
@@ -278,8 +286,7 @@ public class Board {
         //endregion
 
         //region Add half moves
-        // TODO after implementing 50 move rule, add it to FEN
-        stringBuilder.append(" 0");
+        stringBuilder.append(" ").append(halfMoveCounter);
         //endregion
 
         //region Add full-move number
@@ -288,6 +295,30 @@ public class Board {
 
         return stringBuilder.toString();
     }
+
+    /**
+     * Returns current FEN without last two fields (half-moves for threefold counting and full-moves in game)
+     */
+    public String getBoardStateForThreefoldChecking() {
+        String fen = getCurrentFEN();
+        String[] decomposedFEN = fen.split(" ");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < decomposedFEN.length - 2; i++) {
+            sb.append(decomposedFEN[i]);
+            sb.append(" ");
+        }
+        return sb.toString();
+    }
+
+    public static boolean isDrawFromThreefold() {
+        for (String boardstate : threefoldStates) {
+            if (Collections.frequency(threefoldStates, boardstate) >= 3) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     //endregion
 
     //region Helper Functions
@@ -360,6 +391,15 @@ public class Board {
 
         return whiteMaterial - blackMaterial;
     }
+
+    public void updateHalfMoves(Move m) {
+        if (m.isHalfMoveReset()) {
+            halfMoveCounter = 0;
+        }
+        else {
+            halfMoveCounter++;
+        }
+    }
     //endregion
 
     //region enPassantTarget Access Methods
@@ -416,8 +456,11 @@ public class Board {
             String moveNotation = executeMove(square1, square2);
             UI.repaint();
 
-            // Add it to move list
-            moves.add(new Move(moveNotation, square1, square2));
+            // Add it to move list and position to threefold repetition storage
+            Move m = new Move(moveNotation, square1, square2);
+            moves.add(m);
+            threefoldStates.add(getBoardStateForThreefoldChecking());
+            updateHalfMoves(m);
 
             // Get Stockfish's response if possible
             Stockfish.tryPlay(12);
@@ -955,6 +998,24 @@ public class Board {
      * Returns 0 if stalemated, 1 if checkmated, -1 if pieces can move
      */
     public int checkGameOutcome() {
+        if (isDrawFromThreefold() && gameOngoing) {
+            System.out.println("DRAW...");
+            UI.summonEndGamePanel("Stalemate", "By threefold");
+
+            playSound("sounds/beep.wav");
+            gameOngoing = false;
+            return 0;
+        }
+
+        if (halfMoveCounter >= 100 && gameOngoing) {
+            System.out.println("DRAW...");
+            UI.summonEndGamePanel("Stalemate", "By 50-move rule");
+
+            playSound("sounds/beep.wav");
+            gameOngoing = false;
+            return 0;
+        }
+
         if (piecesCanMove()) {
             return -1;
         }
@@ -977,7 +1038,7 @@ public class Board {
         // Handle draw
         if (gameOngoing) {
             System.out.println("DRAW...");
-            UI.summonEndGamePanel("Stalemate", "");
+            UI.summonEndGamePanel("Draw", "By stalemate");
 
             playSound("sounds/beep.wav");
             gameOngoing = false;
@@ -1075,4 +1136,7 @@ public class Board {
         return false; // if there does not exist a piece of the right color which can move
     }
     //endregion
+
+    //region Threefold Repetition Checking
+
 }

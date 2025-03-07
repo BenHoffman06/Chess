@@ -1,6 +1,5 @@
 package core;
 
-import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
@@ -8,8 +7,8 @@ public class EndGamePanel {
     private final Button rematchButton;
     private final Button exitButton;
     private final Button hideButton;
-    private String title;
-    private String subtitle;
+    private String title = "TITLE";
+    private String subtitle = "SUBTITLE";
     private Rectangle panelBounds;
 
     public static class Button {
@@ -42,6 +41,7 @@ public class EndGamePanel {
             isHovered = hovered;
         }
     }
+
     public EndGamePanel() {
         // Initialize buttons with placeholder bounds (updated when drawn)
         rematchButton = new Button(
@@ -156,7 +156,7 @@ public class EndGamePanel {
         } else if (exitButton.contains(mousePos)) {
             System.exit(0);
         } else if (hideButton.contains(mousePos)) {
-            UI.gameEnded = false;
+            UI.endGamePanelShouldBeShown = false;
             UI.repaint();
         }
     }

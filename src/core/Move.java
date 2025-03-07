@@ -1,6 +1,8 @@
 package core;
 
 
+import static core.Main.WHITE_PAWN;
+
 public class Move {
     public int number; // Counts black's first move as #2, double counting
     public String notation;
@@ -30,5 +32,15 @@ public class Move {
 
     public int getDistance() {
         return Math.abs(square1.index - square2.index);
+    }
+
+    public boolean isHalfMoveReset() {
+        if (Math.abs(square2.piece) == WHITE_PAWN) {
+            return true;
+        }
+        if (notation.contains("x")) {
+            return true;
+        }
+        return false;
     }
 }

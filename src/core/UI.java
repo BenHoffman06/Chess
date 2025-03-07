@@ -23,7 +23,7 @@ public class UI {
     public static Square promotionFrom;
     public static Square promotionTo;
 
-    public static boolean gameEnded = false;
+    public static boolean endGamePanelShouldBeShown = false;
 
     public static Rectangle promotionEscapeBounds;
     public static boolean promotionEscapeHover;
@@ -129,7 +129,7 @@ public class UI {
     }
 
     private static void select(Square s) {
-        System.out.println("SELECTING");
+//        System.out.println("SELECTING");
         // If no square is previously selected
         if (selectedSquare == null && s != null) {
 
@@ -187,7 +187,7 @@ public class UI {
             @Override
             public void mousePressed(MouseEvent e) {
 
-                if (gameEnded) {
+                if (endGamePanelShouldBeShown) {
                     endGamePanel.handleMouseClick(e.getPoint());
                     return;
                 }
@@ -247,7 +247,7 @@ public class UI {
                 Point mousePos = e.getPoint();
 
                 // Update game end panel hovering
-                if (gameEnded) {
+                if (endGamePanelShouldBeShown) {
                     endGamePanel.handleMouseMove(mousePos);
                     repaint();
                 }
@@ -258,7 +258,7 @@ public class UI {
                 }
 
                 // endregion
-                if (gameEnded || isPromoting) {
+                if (endGamePanelShouldBeShown || isPromoting) {
                     repaint();
                 }
 
@@ -277,6 +277,10 @@ public class UI {
 
             @Override
             public void mouseReleased(MouseEvent e) {
+                if (beingDragged) {
+                    select(getSquareAt(e.getPoint()));
+                }
+
                 // Update being dragged
                 beingDragged = false;
 
@@ -326,7 +330,7 @@ public class UI {
             public void paint(Graphics g) {
                 super.paint(g);
 
-                if (gameEnded) {
+                if (endGamePanelShouldBeShown) {
                     //region Draw game end UI
                     // Darken background
                     g.setColor(new Color(0, 0, 0, 150)); // Semi-transparent black
@@ -565,7 +569,7 @@ public class UI {
 
     // Modify summonEndGamePanel
     public static void summonEndGamePanel(String title, String subtitle) {
-        gameEnded = true;
+        endGamePanelShouldBeShown = true;
         endGamePanel.setTitle(title);
         endGamePanel.setSubtitle(subtitle);
         mainPanel.repaint();

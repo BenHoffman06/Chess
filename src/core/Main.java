@@ -1,8 +1,5 @@
 package core;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.util.*;
 
 import static core.UI.*;
@@ -12,10 +9,14 @@ public class Main {
     public static Board board = new Board();
 
     public static boolean gameOngoing = true;
-    //region Moves
+
+    // Move and position tracking
     public static ArrayList<Move> moves = new ArrayList<>(); // Stores all moves made in the game
+    public static ArrayList<String> threefoldStates = new ArrayList<>(); // Stores all moves made in the game
+
+    // Accessible moves for a specific piece
     public static ArrayList<Byte> accessibleMoves = new ArrayList<>(); // Stores accessible squares (their index) for a selected piece
-    //endregion
+
 
     //region Piece Constants
     // White Pieces
@@ -55,11 +56,12 @@ public class Main {
     }
 
     public static void rematch() {
-        UI.gameEnded = false;
+        UI.endGamePanelShouldBeShown = false;
         gameOngoing = true;
         board.isWhitesMove = true;
         accessibleMoves.clear();
-
+        threefoldStates.clear();
+        board.halfMoveCounter = 0;
         board.reset();
 
         repaint();
@@ -69,7 +71,7 @@ public class Main {
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
-        board.setFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+//        board.setFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         // Endgame with black winning
 //        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
@@ -78,7 +80,7 @@ public class Main {
 //        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
 
 //        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
-//        setBoardFromFEN("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
+        board.setFromFEN("7k/4Q3/6K1/8/8/8/8/8 w - - 95 1");
         Stockfish.isPlaying = true;
         Stockfish.isWhite = false;
 //        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
