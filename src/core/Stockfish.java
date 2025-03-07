@@ -16,9 +16,13 @@ public class Stockfish {
     public static boolean isWhite = false;
 
     public static void tryPlay(int depth) {
-        if (Stockfish.isPlaying && Stockfish.isWhite == Main.isWhitesMove) {
+        if (isTurn()) {
             Stockfish.makeBestMove(depth);
         }
+    }
+
+    public static boolean isTurn() {
+        return Stockfish.isPlaying && Stockfish.isWhite == Main.board.isWhitesMove;
     }
 
     public static void makeBestMove(int depth) {
@@ -49,7 +53,7 @@ public class Stockfish {
             if (bestMove != null) {
                 System.out.println("Making best move 😈 (" + bestMove + ") after " + totalTime + " milliseconds");
                 Move best = new Move(bestMove);
-                Main.tryMovePiece(best.square1, best.square2);
+                Main.board.attemptMove(best.square1, best.square2);
             } else {
                 System.out.println("Failed to get best move after " + totalTime + " milliseconds");
             }
@@ -61,7 +65,8 @@ public class Stockfish {
     public static CompletableFuture<String> getBestMoveInNewThread(int depth) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return getBestMoveWithEvaluation(Main.getCurrentFEN(), depth)[0];
+                String fen = Main.board.getCurrentFEN();
+                return getBestMoveWithEvaluation(fen, depth)[0];
             } catch (IOException e) {
                 System.out.println("Couldn't get best move... " + e);
                 return null;

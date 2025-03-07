@@ -20,8 +20,8 @@ import java.util.concurrent.TimeUnit;
 public class UI {
 
     //region Implemented global static variables
-    public static Main.Square promotionFrom;
-    public static Main.Square promotionTo;
+    public static Square promotionFrom;
+    public static Square promotionTo;
 
     public static boolean gameEnded = false;
 
@@ -30,7 +30,7 @@ public class UI {
 
     // Variables to handle promotions
     public static boolean isPromoting = false;
-    public static Main.Square promotionSquare = null;
+    public static Square promotionSquare = null;
     public static byte chosenPieceToPromoteTo = 0;
     public static Rectangle[] clickablePromotionRegions = new Rectangle[4];
 
@@ -61,7 +61,7 @@ public class UI {
 
     //region Selection Mistake Variables
     public static int redCountdown = 0;
-    public static Main.Square redSquare;
+    public static Square redSquare;
     //endregion
 
     //region Piece Images
@@ -113,7 +113,7 @@ public class UI {
 //endregion
 
     //region Mouse Interaction Variables
-    public static Main.Square selectedSquare = null;
+    public static Square selectedSquare = null;
     public static boolean beingDragged = false;
     public static int dragX, dragY;
     //endregion
@@ -124,12 +124,12 @@ public class UI {
     //endregion
 
     //region Square Selection and Dragging Logic
-    public static boolean isSelecting(Main.Square s) {
+    public static boolean isSelecting(Square s) {
         return (s == selectedSquare);
     }
 
-    private static void select(Main.Square s) {
-
+    private static void select(Square s) {
+        System.out.println("SELECTING");
         // If no square is previously selected
         if (selectedSquare == null && s != null) {
 
@@ -137,8 +137,8 @@ public class UI {
             if (s.piece != Main.EMPTY) {
 
                 // That piece has to be the color of the person whose turn it is to move
-                boolean isRightColor = (Main.isWhitesMove && s.piece > 0) || (!Main.isWhitesMove && s.piece < 0);
-                if (isRightColor) {
+                boolean isRightColor = (Main.board.isWhitesMove && s.piece > 0) || (!Main.board.isWhitesMove && s.piece < 0);
+                if (isRightColor && !Stockfish.isTurn()) {
                     selectedSquare = s;
                 }
             }
@@ -151,7 +151,7 @@ public class UI {
                 if (selectedSquare.piece != Main.EMPTY) {
 
                     // Try to move to new square
-                    Main.tryMovePiece(selectedSquare, s);
+                    Main.board.attemptMove(selectedSquare, s);
                 }
                 // Clear selection after move or if selected square was empty
             }
@@ -163,7 +163,7 @@ public class UI {
     }
     //endregion
 
-    public static void handleInvalidMoveTo(Main.Square s) {
+    public static void handleInvalidMoveTo(Square s) {
         UI.selectedSquare = null;
 
         UI.redCountdown = 25;
@@ -172,7 +172,7 @@ public class UI {
         s.repaint();
     }
 
-    public static void handleInvalidMoveTo(Main.Square s, String message) {
+    public static void handleInvalidMoveTo(Square s, String message) {
         System.out.println(message);
         handleInvalidMoveTo(s);
     }
@@ -205,7 +205,7 @@ public class UI {
 
                             // Process promotion by calling movePiece with stored from and to
                             chosenPieceToPromoteTo = selectedPiece;
-                            String moveNotation = Main.movePiece(UI.promotionFrom, UI.promotionTo);
+                            String moveNotation = Main.board.executeMove(UI.promotionFrom, UI.promotionTo);
                             Main.moves.add(new Move(moveNotation, UI.promotionFrom, UI.promotionTo));
 
                             // Reset promotion state
@@ -227,7 +227,7 @@ public class UI {
 
                 //region Handle square selection/deselection
 
-                Main.Square clickedSquare = getSquareAt(e.getPoint());
+                Square clickedSquare = getSquareAt(e.getPoint());
                 select(clickedSquare);
 
                 // If not selecting square, clear accessible moves
@@ -237,7 +237,7 @@ public class UI {
 
                 // If selecting square, keep accessible moves updated
                 else {
-                    Main.accessibleMoves = Main.accessibleSquaresOf(UI.selectedSquare, Main.board, true);
+                    Main.accessibleMoves = Main.board.accessibleSquaresOf(UI.selectedSquare, Main.board, true);
                 }
                 //endregion
             }
@@ -302,15 +302,15 @@ public class UI {
                 }
 
                 // If previously selected a different, move to new point
-                Main.Square targetSquare = getSquareAt(e.getPoint());
+                Square targetSquare = getSquareAt(e.getPoint());
 //                boolean
                 if (targetSquare != null && targetSquare != selectedSquare && selectedSquare != null) {
-                    Main.tryMovePiece(selectedSquare, targetSquare);
+                    Main.board.attemptMove(selectedSquare, targetSquare);
                 }
             }
 
-            private Main.Square getSquareAt(Point p) {
-                for (Main.Square square : Main.board) {
+            private Square getSquareAt(Point p) {
+                for (Square square : Main.board.squares) {
                     if (square.getBounds().contains(p)) {
                         return square;
                     }
@@ -343,11 +343,11 @@ public class UI {
                 //region Draw lost pieces and material difference
 
                 // Sort lost pieces: white pieces in natural order, black pieces in reverse order.
-                Main.lostWhitePieces.sort(Byte::compare);
-                Main.lostBlackPieces.sort(Comparator.reverseOrder());
+                Main.board.capturedWhitePieces.sort(Byte::compare);
+                Main.board.capturedBlackPieces.sort(Comparator.reverseOrder());
 
                 // Calculate variables for displaying material difference
-                int materialDiff = Main.getMaterialDiff();
+                int materialDiff = Main.board.getMaterialDiff();
                 boolean materialOnWhiteSide = (materialDiff > 0);
 
                 // Calculate board metrics for dynamic sizing
@@ -361,8 +361,8 @@ public class UI {
                 // Start drawing to the right of the board, vertically centered using heightOffset.
                 Point whiteStart = new Point(boardRightEdge + boardBounds.width / 16, (boardBounds.y + heightOffset) - (pieceWidth / 2));
                 int newX = whiteStart.x;
-                for (int i = 0; i < Main.lostWhitePieces.size(); i++) {
-                    byte piece = Main.lostWhitePieces.get(i);
+                for (int i = 0; i < Main.board.capturedWhitePieces.size(); i++) {
+                    byte piece = Main.board.capturedWhitePieces.get(i);
                     // If the same type as the previous piece, adjust the x position for a tighter grouping.
                     if (previous == piece) {
                         newX -= (int)(pieceWidth / 1.5);
@@ -382,8 +382,8 @@ public class UI {
                 Point blackStart = new Point(boardRightEdge + boardBounds.width / 16,
                         (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
                 newX = blackStart.x;
-                for (int i = 0; i < Main.lostBlackPieces.size(); i++) {
-                    byte piece = Main.lostBlackPieces.get(i);
+                for (int i = 0; i < Main.board.capturedBlackPieces.size(); i++) {
+                    byte piece = Main.board.capturedBlackPieces.get(i);
                     if (previous == piece) {
                         newX -= (int)(pieceWidth / 1.5);
                     }
@@ -405,8 +405,8 @@ public class UI {
                 blackStart = new Point(boardRightEdge + boardBounds.width / 16,
                         (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
                 newX = blackStart.x;
-                for (int i = 0; i < Main.lostBlackPieces.size(); i++) {
-                    byte piece = Main.lostBlackPieces.get(i);
+                for (int i = 0; i < Main.board.capturedBlackPieces.size(); i++) {
+                    byte piece = Main.board.capturedBlackPieces.get(i);
                     if (previous == piece) {
                         newX -= (int)(pieceWidth / 1.5);
                     }
@@ -422,7 +422,7 @@ public class UI {
 //                    System.out.println("Trying to draw promotion UI! 🤞");
 
                     // Calculate relevant variables
-                    int squareSize = Main.board[0].getWidth();
+                    int squareSize = Main.board.squares[0].getWidth();
                     Point promotionPos = UI.getSquarePosition(promotionSquare.index); // getScreenPosition
                     boolean isWhitePromotion = promotionSquare.index < 8;
                     int direction = isWhitePromotion ? 1 : -1;
@@ -478,7 +478,7 @@ public class UI {
                 }
 
                 // Draw accessible moves
-                for (Main.Square s : Main.board) {
+                for (Square s : Main.board.squares) {
                     for (Byte b : Main.accessibleMoves ) {
                         if ((int) b == (int) s.index){
                             double width = (.27 * s.getWidth());
@@ -532,13 +532,7 @@ public class UI {
         frame.setSize(1000, 550);
         frame.setLocationRelativeTo(null);
 
-        // Fill board with squares
-        for (byte i = 0; i < 64; i++) {
-            Color color = (i + i / 8) % 2 == 0 ? WHITE : BLACK;
-            Main.Square square = new Main.Square(color, i);
-            mainPanel.add(square);
-            Main.board[i] = square;
-        }
+        Main.board.addSquaresToPanel(mainPanel);
 
         // Set up listener to resize board on window resize
         frame.addComponentListener(new ComponentAdapter() {
@@ -654,6 +648,4 @@ public class UI {
             }
         }).start();
     }
-
-
 }

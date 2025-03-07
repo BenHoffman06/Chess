@@ -12,6 +12,36 @@ public class EndGamePanel {
     private String subtitle;
     private Rectangle panelBounds;
 
+    public static class Button {
+        private Rectangle bounds;
+        private final BufferedImage normalImage;
+        private final BufferedImage hoverImage;
+        private boolean isHovered;
+
+        public Button(Rectangle bounds, BufferedImage normalImage, BufferedImage hoverImage) {
+            this.bounds = bounds;
+            this.normalImage = normalImage;
+            this.hoverImage = hoverImage;
+            this.isHovered = false;
+        }
+
+        public void draw(Graphics2D g2d) {
+            BufferedImage img = isHovered ? hoverImage : normalImage;
+            g2d.drawImage(img, bounds.x, bounds.y, bounds.width, bounds.height, null);
+        }
+
+        public boolean contains(Point p) {
+            return bounds.contains(p);
+        }
+
+        public void setBounds(Rectangle bounds) {
+            this.bounds = bounds;
+        }
+
+        public void setHovered(boolean hovered) {
+            isHovered = hovered;
+        }
+    }
     public EndGamePanel() {
         // Initialize buttons with placeholder bounds (updated when drawn)
         rematchButton = new Button(
@@ -35,7 +65,7 @@ public class EndGamePanel {
 
     public void draw(Graphics2D g2d, int parentWidth, int parentHeight) {
         // Calculate panel dimensions based on chess square size
-        int squareSize = Main.board[0].getWidth();
+        int squareSize = Main.board.squares[0].getWidth();
         int panelWidth = (int)(squareSize * 3.25);
         int panelHeight = (int)(panelWidth * (334.0/323.0));
         int x = (parentWidth - panelWidth) / 2;
@@ -138,9 +168,5 @@ public class EndGamePanel {
 
     public void setSubtitle(String subtitle) {
         this.subtitle = subtitle;
-    }
-
-    public Rectangle getBounds() {
-        return panelBounds;
     }
 }
