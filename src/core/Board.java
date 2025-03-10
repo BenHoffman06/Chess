@@ -272,7 +272,7 @@ public class Board {
 
         if (ePTarget != null) {
             Square left = squares[ePTarget.index - 1];
-            Square right = squares[ePTarget.index - 1];
+            Square right = squares[ePTarget.index + 1];
 
             byte enemyPawn = isWhitesMove ? WHITE_PAWN : BLACK_PAWN;
 
@@ -317,6 +317,33 @@ public class Board {
             }
         }
         return false;
+    }
+
+    public boolean isInsufficientMaterial() {
+        int whiteMaterial = 0;
+        int blackMaterial = 0;
+        for (Square  s : squares) {
+            switch (s.piece) {
+                case EMPTY, WHITE_KING, BLACK_KING -> {}
+                case WHITE_BISHOP, WHITE_KNIGHT -> whiteMaterial += s.piece;
+                case BLACK_BISHOP, BLACK_KNIGHT -> blackMaterial -= s.piece;
+                default -> {
+                    return false;
+                }
+            }
+        }
+        // If each side has >1 bishop or bishop+knight
+        if (whiteMaterial >= 5 || blackMaterial >= 5) {
+            return false;
+        }
+        // If one side has two knights only insufficient material if other side material = 0
+        boolean oneSideHasTwoKnights = whiteMaterial == 4 || blackMaterial == 4;
+        if (oneSideHasTwoKnights && whiteMaterial + blackMaterial != 4) {
+            return false;
+        }
+
+        return true;
+
     }
 
     //endregion
@@ -998,15 +1025,25 @@ public class Board {
      * Returns 0 if stalemated, 1 if checkmated, -1 if pieces can move
      */
     public int checkGameOutcome() {
+        // Check draw from threefold
         if (isDrawFromThreefold() && gameOngoing) {
-            System.out.println("DRAW...");
-            UI.summonEndGamePanel("Stalemate", "By threefold");
+            UI.summonEndGamePanel("Draw", "By threefold");
 
             playSound("sounds/beep.wav");
             gameOngoing = false;
             return 0;
         }
 
+        // Check draw from insufficient material
+        if (isInsufficientMaterial() && gameOngoing) {
+            UI.summonEndGamePanel("Draw", "By insufficient material");
+
+            playSound("sounds/beep.wav");
+            gameOngoing = false;
+            return 0;
+        }
+
+        // Check draw by 50 move rule
         if (halfMoveCounter >= 100 && gameOngoing) {
             System.out.println("DRAW...");
             UI.summonEndGamePanel("Stalemate", "By 50-move rule");
@@ -1016,26 +1053,23 @@ public class Board {
             return 0;
         }
 
+        // Check the game has not finished
         if (piecesCanMove()) {
             return -1;
         }
 
-        // Handle checkmate
-        // only triggers once before gameOngoing flag is set to false
-        if (isKingInCheck(board, board.isWhitesMove)) {
+        // Check checkmate
+        if (isKingInCheck(board, board.isWhitesMove) && gameOngoing) {
+            String winner = board.isWhitesMove ? "Black" : "White";
+            UI.summonEndGamePanel(winner + " Wins", "by checkmate");
 
-            if (gameOngoing) {
-                String winner = board.isWhitesMove ? "Black" : "White";
-                UI.summonEndGamePanel(winner + " Wins", "by checkmate");
-
-                playSound("sounds/beep.wav");
-                gameOngoing = false;
-            }
+            playSound("sounds/beep.wav");
+            gameOngoing = false;
 
             return 1;
         }
 
-        // Handle draw
+        // Handle stalemate
         if (gameOngoing) {
             System.out.println("DRAW...");
             UI.summonEndGamePanel("Draw", "By stalemate");
@@ -1136,7 +1170,5 @@ public class Board {
         return false; // if there does not exist a piece of the right color which can move
     }
     //endregion
-
-    //region Threefold Repetition Checking
 
 }

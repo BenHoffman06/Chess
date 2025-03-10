@@ -80,9 +80,20 @@ public class Main {
 //        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
 
 //        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
-        board.setFromFEN("7k/4Q3/6K1/8/8/8/8/8 w - - 95 1");
+//        board.setFromFEN("rnb1kb1r/pppppppp/8/5n2/8/6Q1/PPPPPPPP/RNB1K2R w KQkq - 0 1");
+
+        // Test en passant after double pawn move
+//        board.setFromFEN("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1");
+
+// Test castling through check
+//        board.setFromFEN("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
+//
+//// Test insufficient material
+        board.setFromFEN("8/8/8/8/8/8/8/KB5k w - - 0 1");
+
         Stockfish.isPlaying = true;
         Stockfish.isWhite = false;
+        Stockfish.tryPlay(12);
 //        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
 
     }
