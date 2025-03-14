@@ -136,7 +136,7 @@ public class EndGamePanel {
                 new Rectangle(x, y + (int)(panelHeight * 0.15), panelWidth, (int)(panelHeight * 0.06)));
     }
 
-    private void drawCenteredString(Graphics g, String text, Rectangle rect) {
+    public void drawCenteredString(Graphics g, String text, Rectangle rect) {
         FontMetrics metrics = g.getFontMetrics();
         int x = rect.x + (rect.width - metrics.stringWidth(text)) / 2;
         int y = rect.y + ((rect.height - metrics.getHeight()) / 2) + metrics.getAscent();

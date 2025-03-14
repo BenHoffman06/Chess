@@ -421,6 +421,26 @@ public class UI {
                 }
                 //endregion
 
+                //region Draw Evaluation
+                double eval = Engine.getEval(Main.board);
+                double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
+                int divider = (int) (boardBounds.y + boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
+                Rectangle evalBar = new Rectangle(boardBounds.x - 32, boardBounds.y, 32, boardBounds.height);
+
+                // Draw white part
+                g.setColor(Color.WHITE);
+                int whiteHeight = evalBar.y + evalBar.height - divider;
+                g.fillRect(evalBar.x, divider, evalBar.width, whiteHeight);
+
+                // Draw black part
+                g.setColor(Color.BLACK);
+                g.fillRect(evalBar.x, evalBar.y, evalBar.width, evalBar.height - whiteHeight);
+
+                // Draw eval number
+                g.drawString(String.valueOf(eval == 0 ? 0 : -1 * eval), boardBounds.x - 24, evalBar.y + evalBar.height - 24);
+
+                //endregion
+
                 if (isPromoting) {
                     //region Draw promotion UI
 //                    System.out.println("Trying to draw promotion UI! 🤞");
