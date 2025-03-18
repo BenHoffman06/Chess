@@ -1,9 +1,5 @@
 package core;
 
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static core.UI.*;
@@ -73,62 +69,16 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        //region Test HTTP Connection
-//        try {
-//            String encodedFen = URLEncoder.encode(Board.STARTING_FEN, StandardCharsets.UTF_8);
-//            String urlStr = String.format(
-//                    "https://stockfish.online/api/s/v2.php?fen=%s&depth=%d",
-//                    encodedFen,
-//                    12
-//            );
-//            System.out.println("Using FEN: " + Board.STARTING_FEN);
-//
-//            URL url = new URL(urlStr);
-//            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-//            conn.setRequestMethod("GET");
-//
-//            long startTime = System.nanoTime();
-//            int responseCode = conn.getResponseCode();
-//            long endTime = System.nanoTime();
-//            long duration = endTime - startTime;
-//
-//            System.out.println("HTTP Responded in " + (duration / 1000000) + "ms");
-//        }
-//        catch (Exception e) {
-//            System.out.println("Expection testing HTTP Connection: " + e);
-//        }
-        //endregion
-
-
-
 
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
-        board.setFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+//        board.reset();
 
-        // Endgame with black winning
-//        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
-
-        // Endgame with white winning
-//        setBoardFromFEN("3K4/8/8/8/8/2Q3Q1/8/3k4 w - - 0 1");
-
-//        setBoardFromFEN("8/4PPP1/2k5/8/2K5/8/4pp1p/8 w - - 0 1");
-//        board.setFromFEN("rnb1kb1r/pppppppp/8/5n2/8/6Q1/PPPPPPPP/RNB1K2R w KQkq - 0 1");
-
-        // Test en passant after double pawn move
-//        board.setFromFEN("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1");
-
-// Test castling through check
-//        board.setFromFEN("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
-//
-//// Test insufficient material
-//        board.setFromFEN("8/8/8/8/8/8/8/KB5k w - - 0 1");
-
-//        currentEngine = new MyEngine();
+        board.setFromFEN("rnbqkbnr/p2ppppp/8/8/8/8/PPpPPPPP/RNBQKBNR w KQkq - 0 1");
         currentEngine = new MyEngine();
         currentEngine.isPlaying = true;
-        currentEngine.isWhite = false;
+        currentEngine.isWhite = true;
         currentEngine.tryPlay(12);
 //        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
 

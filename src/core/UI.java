@@ -201,12 +201,12 @@ public class UI {
                         if (r.contains(e.getPoint())) {
                             // Find piece clicked on
                             byte selectedPiece = Objects.requireNonNull(getSquareAt(e.getPoint())).getPromotionOption();
-                            System.out.println("You clicked on piece value: " + selectedPiece);
+//                            System.out.println("You clicked on piece value: " + selectedPiece);
 
                             // Process promotion by calling movePiece with stored from and to
                             chosenPieceToPromoteTo = selectedPiece;
-                            String moveNotation = Main.board.executeMove(UI.promotionFrom, UI.promotionTo);
-                            Main.moves.add(new Move(moveNotation, UI.promotionFrom, UI.promotionTo));
+                            // We skip calling attemptMove first because that was already called to set up piece UI, and now we know the promotion is legal
+                            Main.board.executeMove(UI.promotionFrom, UI.promotionTo);
 
                             // Reset promotion state
                             isPromoting = false;

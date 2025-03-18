@@ -507,18 +507,7 @@ public class Board {
 
             //endregion
 
-            // Make and display move
-            String moveNotation = executeMove(square1, square2);
-            UI.repaint();
-
-            // Add it to move list and position to threefold repetition storage
-            Move m = new Move(moveNotation, square1, square2);
-            moves.add(m);
-            threefoldStates.add(getBoardStateForThreefoldChecking());
-            updateHalfMoves(m);
-
-            // Get Stockfish's response if possible
-            Main.currentEngine.tryPlay(12);
+            executeMove(square1, square2);
         }
         else {
             UI.handleInvalidMoveTo(square2);
@@ -530,10 +519,11 @@ public class Board {
      * Move piece from square1 to square2 <br>
      * returns chess notation for move
      */
-    public String executeMove(Square square1, Square square2) {
-
+    public void executeMove(Square square1, Square square2) {
+        //region Handle board and move notation
         byte from = square1.index;
         byte to = square2.index;
+        String moveNotation = null;
 
         // Update variables
         board.isWhitesMove = !board.isWhitesMove;
@@ -580,7 +570,7 @@ public class Board {
                 otherSide.repaint();
 
                 // Return notation
-                return "O-O";
+                moveNotation = "O-O";
             }
 
             // If doing queenside castle
@@ -601,7 +591,7 @@ public class Board {
                 otherSide.repaint();
 
                 // Return notation
-                return "O-O-O";
+                moveNotation = "O-O-O";
             }
         }
 
@@ -651,8 +641,35 @@ public class Board {
         // Remove piece which moved from its original square
         board.squares[from].piece = EMPTY;
 
+        // Finally calculate move notation
+        if (!takesString.isEmpty()) {
+            toLocation = square2.getSquareName();
+        }
+        if (moveNotation == null) {
+            moveNotation = movingPieceStr + takesString + toLocation;
+        }
+        if (isWhitePromotion || isBlackPromotion) {
+            moveNotation += String.valueOf(square2.getPieceChar());
+        }
 
-        return movingPieceStr + takesString + toLocation;
+        UI.repaint();
+        //endregion
+
+        //region Handle game
+
+        // Add it to move list and position to threefold repetition storage
+        Move m = new Move(moveNotation, square1, square2);
+        moves.add(m);
+        threefoldStates.add(getBoardStateForThreefoldChecking());
+        updateHalfMoves(m);
+
+        // Print out move made
+        System.out.println(m.notation);
+
+        // Get Stockfish's response if possible
+        Main.currentEngine.tryPlay(12);
+
+        //endregion
     }
 
 

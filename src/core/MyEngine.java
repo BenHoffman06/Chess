@@ -4,9 +4,8 @@ import java.util.ArrayList;
 
 public class MyEngine extends Engine {
 
-    @Override
-    public double getEval(int depth) {
-        System.out.println("Returning eval: " + board.getMaterialDiff());
+    public double calcEval(int depth) {
+//        System.out.println("Returning eval: " + board.getMaterialDiff());
         return board.getMaterialDiff();
     }
 
@@ -17,7 +16,8 @@ public class MyEngine extends Engine {
             if (s.piece > 0 == board.isWhitesMove && !accessibleSquares.isEmpty()) {
                 String from = s.getSquareName();
                 String to = board.squares[accessibleSquares.getFirst()].getSquareName();
-                System.out.println("Returning best move: " + from + to);
+//                System.out.println("Returning best move: " + from + to);
+                // TODO figure out checks when promoting by capturing their queen while promoting
                 return from + to;
             }
         }
@@ -29,7 +29,7 @@ public class MyEngine extends Engine {
     public String[] calculateBestMoveWithEvaluation(String fen, int depth) {
         String[] response = new String[2];
         response[0] = getBestMove(12);
-        response[1] = String.valueOf(getEval(12));
+        response[1] = String.valueOf(calcEval(12));
         return response;
     }
 }

@@ -49,7 +49,7 @@ public abstract class Engine {
             completed.set(true);
             long totalTime = System.currentTimeMillis() - startTime;
             if (bestMove != null) {
-                System.out.println("Making best move 😈 (" + bestMove + ") after " + totalTime + " milliseconds");
+                System.out.println("Made move after " + totalTime + " milliseconds");
                 Move best = new Move(bestMove);
                 board.attemptMove(best.square1, best.square2);
             } else {
@@ -60,6 +60,7 @@ public abstract class Engine {
 
     // TODO simplify
     public CompletableFuture<String> getBestMoveInNewThread(int depth) {
+        System.out.println("Getting best move in new thread.");
         return CompletableFuture.supplyAsync(() -> {
             String fen = board.getCurrentFEN();
             return getBestMoveWithEvaluation(fen, depth)[0];
@@ -94,8 +95,8 @@ public abstract class Engine {
      * Tries to retrieve stored eval, if it doesn't exist it returns calculateBestMoveWithEvaluation()
      */
     public String[] getBestMoveWithEvaluation(String fen, int depth) {
-        System.out.println("Checking if storedEvals contains " + fen);
-        System.out.println("StoredEvals keys: " + storedEvals.keySet());
+//        System.out.println("Checking if storedEvals contains " + fen);
+//        System.out.println("StoredEvals keys: " + storedEvals.keySet());
         if (storedEvals.containsKey(fen)) {
             return storedEvals.get(fen);
         }
