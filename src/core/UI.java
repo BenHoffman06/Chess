@@ -138,7 +138,7 @@ public class UI {
 
                 // That piece has to be the color of the person whose turn it is to move
                 boolean isRightColor = (Main.board.isWhitesMove && s.piece > 0) || (!Main.board.isWhitesMove && s.piece < 0);
-                if (isRightColor && !Stockfish.isTurn()) {
+                if (isRightColor && !Main.currentEngine.isTurn()) {
                     selectedSquare = s;
                 }
             }
@@ -422,24 +422,27 @@ public class UI {
                 //endregion
 
                 //region Draw Evaluation
-                double eval = Engine.getEval(Main.board);
-                double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
-                int divider = (int) (boardBounds.y + boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
-                Rectangle evalBar = new Rectangle(boardBounds.x - 32, boardBounds.y, 32, boardBounds.height);
+                    double eval = (!Main.currentEngine.isAwaitingResponse) ? -1 * Main.currentEngine.getEval(12) : -1 * Main.board.currentEval;
+                    double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
+                    int divider = (int) (boardBounds.y + boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
+                    Rectangle evalBar = new Rectangle(boardBounds.x - 30 * boardBounds.height / 256, boardBounds.y, boardBounds.height / 16, boardBounds.height);
 
-                // Draw white part
-                g.setColor(Color.WHITE);
-                int whiteHeight = evalBar.y + evalBar.height - divider;
-                g.fillRect(evalBar.x, divider, evalBar.width, whiteHeight);
+                    // Draw white part
+                    g.setColor(Color.WHITE);
+                    int whiteHeight = evalBar.y + evalBar.height - divider;
+                    g.fillRect(evalBar.x, divider, evalBar.width, whiteHeight);
 
-                // Draw black part
-                g.setColor(Color.BLACK);
-                g.fillRect(evalBar.x, evalBar.y, evalBar.width, evalBar.height - whiteHeight);
+                    // Draw black part
+                    g.setColor(new Color(64, 61, 57));
+                    g.fillRect(evalBar.x, evalBar.y, evalBar.width, evalBar.height - whiteHeight);
 
-                // Draw eval number
-                g.drawString(String.valueOf(eval == 0 ? 0 : -1 * eval), boardBounds.x - 24, evalBar.y + evalBar.height - 24);
+                    // Draw eval number
+                    g.setColor(BACKGROUND);
+                    g.drawString(String.valueOf(eval == 0 ? 0 : -1 * eval), boardBounds.x - (int) (boardBounds.height / 9.5), evalBar.y + evalBar.height - 24);
 
-                //endregion
+
+                    //endregion
+
 
                 if (isPromoting) {
                     //region Draw promotion UI

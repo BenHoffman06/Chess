@@ -9,6 +9,7 @@ public class Main {
     public static Board board = new Board();
 
     public static boolean gameOngoing = true;
+    public static Engine currentEngine = null;
 
     // Move and position tracking
     public static ArrayList<Move> moves = new ArrayList<>(); // Stores all moves made in the game
@@ -71,7 +72,7 @@ public class Main {
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
-//        board.setFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        board.setFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         // Endgame with black winning
 //        setBoardFromFEN("3k4/8/8/8/8/2q3q1/8/3K4 b - - 0 1");
@@ -89,11 +90,13 @@ public class Main {
 //        board.setFromFEN("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
 //
 //// Test insufficient material
-        board.setFromFEN("8/8/8/8/8/8/8/KB5k w - - 0 1");
+//        board.setFromFEN("8/8/8/8/8/8/8/KB5k w - - 0 1");
 
-        Stockfish.isPlaying = true;
-        Stockfish.isWhite = false;
-        Stockfish.tryPlay(12);
+        currentEngine = new MyEngine();
+
+        currentEngine.isPlaying = true;
+        currentEngine.isWhite = false;
+        currentEngine.tryPlay(12);
 //        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
 
     }

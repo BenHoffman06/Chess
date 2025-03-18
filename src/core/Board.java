@@ -40,6 +40,8 @@ public class Board {
 
     //endregion
 
+    public double currentEval;
+
     //region Initialization and Setup
     public Board() {
         // Fill with squares
@@ -48,6 +50,18 @@ public class Board {
             Square square = new Square(color, i);
             squares[i] = square;
         }
+    }
+
+    public Board(String fen) {
+        // Fill with squares
+        for (byte i = 0; i < 64; i++) {
+            Color color = (i + i / 8) % 2 == 0 ? UI.WHITE : UI.BLACK;
+            Square square = new Square(color, i);
+            squares[i] = square;
+        }
+
+        // Set up board to comply with FEN
+        setFromFEN(fen);
     }
 
     public Board(Board b) {
@@ -63,7 +77,7 @@ public class Board {
         this.isWhitesMove = b.isWhitesMove;
 
         // En passant
-        Square enPassantTarget = b.enPassantTarget;
+        this.enPassantTarget = b.enPassantTarget;
     }
 
     public void addSquaresToPanel(JPanel mainPanel) {
@@ -490,7 +504,7 @@ public class Board {
             updateHalfMoves(m);
 
             // Get Stockfish's response if possible
-            Stockfish.tryPlay(12);
+            Main.currentEngine.tryPlay(12);
         }
         else {
             UI.handleInvalidMoveTo(square2);
@@ -639,7 +653,7 @@ public class Board {
     //endregion
 
     //region Piece Movement Logic
-    private ArrayList<Byte> getRawMoves(Square square, Board board) {
+    private static ArrayList<Byte> getRawMoves(Square square, Board board) {
         ArrayList<Byte> byteMoves = new ArrayList<>();
         byte piece = square.piece;
         byte location = square.index;
@@ -919,7 +933,7 @@ public class Board {
         return byteMoves;
     }
 
-    public ArrayList<Byte> accessibleSquaresOf(Square square, Board board, boolean checkForChecks) {
+    public static ArrayList<Byte> accessibleSquaresOf(Square square, Board board, boolean checkForChecks) {
         ArrayList<Byte> validMoves = new ArrayList<>();
         byte piece = square.piece;
         byte location = square.index;
@@ -984,7 +998,7 @@ public class Board {
         return validMoves;
     }
 
-    private void simulateMove(Board on, byte from, byte to) {
+    private static void simulateMove(Board on, byte from, byte to) {
         //region Handle promotions
         if (on.squares[from].piece == WHITE_PAWN && to < 8) {
             on.squares[to].piece = chosenPieceToPromoteTo;
@@ -1082,7 +1096,7 @@ public class Board {
     //endregion
 
     //region Move Validation
-    public boolean isKingInCheck(Board board, boolean isWhite) {
+    public static boolean isKingInCheck(Board board, boolean isWhite) {
         byte king = (isWhite ? WHITE_KING : BLACK_KING);
         Square kingSquare = null;
 

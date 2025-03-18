@@ -7,73 +7,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Stockfish {
-
-    public static boolean isPlaying = false;
-    public static boolean isWhite = false;
-
-    public static void tryPlay(int depth) {
-        if (isTurn()) {
-            Stockfish.makeBestMove(depth);
-        }
-    }
-
-    public static boolean isTurn() {
-        return Stockfish.isPlaying && Stockfish.isWhite == Main.board.isWhitesMove;
-    }
-
-    public static void makeBestMove(int depth) {
-        CompletableFuture<String> futureMove = Stockfish.getBestMoveInNewThread(depth);
-        long startTime = System.currentTimeMillis();
-        AtomicBoolean completed = new AtomicBoolean(false);
-
-        // Start a timer thread
-        Thread timerThread = new Thread(() -> {
-            try {
-                while (!completed.get()) {
-                    Thread.sleep(5000); // Wait for 5 seconds
-                    if (!completed.get()) {
-                        long elapsedTime = System.currentTimeMillis() - startTime;
-                        System.out.println("Still waiting for best move... " + elapsedTime + " milliseconds elapsed");
-                    }
-                }
-            } catch (InterruptedException e) {
-                // Thread interrupted, exit silently
-            }
-        });
-        timerThread.start();
-
-        // Use callback to handle the result when it's ready
-        futureMove.thenAccept(bestMove -> {
-            completed.set(true);
-            long totalTime = System.currentTimeMillis() - startTime;
-            if (bestMove != null) {
-                System.out.println("Making best move 😈 (" + bestMove + ") after " + totalTime + " milliseconds");
-                Move best = new Move(bestMove);
-                Main.board.attemptMove(best.square1, best.square2);
-            } else {
-                System.out.println("Failed to get best move after " + totalTime + " milliseconds");
-            }
-        });
-    }
-
-
-
-    public static CompletableFuture<String> getBestMoveInNewThread(int depth) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                String fen = Main.board.getCurrentFEN();
-                return getBestMoveWithEvaluation(fen, depth)[0];
-            } catch (IOException e) {
-                System.out.println("Couldn't get best move... " + e);
-                return null;
-            }
-        });
-    }
-
+public class Stockfish extends Engine {
 
     /**
      * Gets best move and evaluation from Stockfish API.
@@ -91,7 +26,8 @@ public class Stockfish {
      * System.out.println("Evaluation: " + result[1]); // e.g. "0.45" or "-3" (mate in 3 for black)
      * </pre>
      */
-    public static String[] getBestMoveWithEvaluation(String fen, int depth) throws IOException {
+    @Override
+    public String[] calculateBestMoveWithEvaluation(String fen, int depth) throws IOException {
         if (depth < 1 || depth >= 16) {
             throw new IllegalArgumentException("Depth must be between 1 and 15");
         }
