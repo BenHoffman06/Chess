@@ -1,5 +1,9 @@
 package core;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static core.UI.*;
@@ -69,6 +73,35 @@ public class Main {
     }
 
     public static void main(String[] args) {
+        //region Test HTTP Connection
+//        try {
+//            String encodedFen = URLEncoder.encode(Board.STARTING_FEN, StandardCharsets.UTF_8);
+//            String urlStr = String.format(
+//                    "https://stockfish.online/api/s/v2.php?fen=%s&depth=%d",
+//                    encodedFen,
+//                    12
+//            );
+//            System.out.println("Using FEN: " + Board.STARTING_FEN);
+//
+//            URL url = new URL(urlStr);
+//            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+//            conn.setRequestMethod("GET");
+//
+//            long startTime = System.nanoTime();
+//            int responseCode = conn.getResponseCode();
+//            long endTime = System.nanoTime();
+//            long duration = endTime - startTime;
+//
+//            System.out.println("HTTP Responded in " + (duration / 1000000) + "ms");
+//        }
+//        catch (Exception e) {
+//            System.out.println("Expection testing HTTP Connection: " + e);
+//        }
+        //endregion
+
+
+
+
         UI.mainPanel = UI.handleGUI();
 
         // Default piece setup
@@ -92,8 +125,8 @@ public class Main {
 //// Test insufficient material
 //        board.setFromFEN("8/8/8/8/8/8/8/KB5k w - - 0 1");
 
+//        currentEngine = new MyEngine();
         currentEngine = new MyEngine();
-
         currentEngine.isPlaying = true;
         currentEngine.isWhite = false;
         currentEngine.tryPlay(12);

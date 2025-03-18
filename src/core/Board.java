@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Objects;
 
 import static core.Main.*;
 import static core.UI.*;
@@ -24,7 +25,7 @@ public class Board {
             "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
     };
 
-    public static final String STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+    public static final String STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     // Pieces
     public ArrayList<Byte> capturedWhitePieces = new ArrayList<>();
@@ -50,6 +51,9 @@ public class Board {
             Square square = new Square(color, i);
             squares[i] = square;
         }
+
+        // Hardcode starting eval
+        currentEval = 0.2;
     }
 
     public Board(String fen) {
@@ -62,6 +66,11 @@ public class Board {
 
         // Set up board to comply with FEN
         setFromFEN(fen);
+
+        if (Objects.equals(fen, STARTING_FEN)) {
+            // Hardcode starting eval
+            currentEval = 0.2;
+        }
     }
 
     public Board(Board b) {
@@ -78,6 +87,11 @@ public class Board {
 
         // En passant
         this.enPassantTarget = b.enPassantTarget;
+
+        if (Objects.equals(b.getCurrentFEN(), STARTING_FEN)) {
+            // Hardcode starting eval
+            currentEval = 0.2;
+        }
     }
 
     public void addSquaresToPanel(JPanel mainPanel) {

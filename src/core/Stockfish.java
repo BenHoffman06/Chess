@@ -7,6 +7,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Stockfish extends Engine {
 
@@ -116,5 +119,17 @@ public class Stockfish extends Engine {
 
         if (valueEnd == -1) return "null";
         return json.substring(valueStart, valueEnd).trim();
+    }
+
+    // Add a dedicated executor for blocking tasks
+    private static final ExecutorService stockfishExecutor =
+            Executors.newCachedThreadPool();
+
+    @Override
+    public CompletableFuture<String> getBestMoveInNewThread(int depth) {
+        return CompletableFuture.supplyAsync(() -> {
+            String fen = board.getCurrentFEN();
+            return getBestMoveWithEvaluation(fen, depth)[0];
+        }, stockfishExecutor); // Use custom executor
     }
 }

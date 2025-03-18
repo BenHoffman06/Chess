@@ -11,7 +11,7 @@ public abstract class Engine {
     boolean isWhite = false;
     Board board = Main.board;
     HashMap<String, String[]> storedEvals = new HashMap<>(); // Maps FEN to evaluations including eval bar and best move in string form
-    boolean isAwaitingResponse = false;
+    boolean isAwaitingResponse = true;
 
     void tryPlay(int depth) {
         if (isTurn()) {
@@ -59,7 +59,7 @@ public abstract class Engine {
     }
 
     // TODO simplify
-    CompletableFuture<String> getBestMoveInNewThread(int depth) {
+    public CompletableFuture<String> getBestMoveInNewThread(int depth) {
         return CompletableFuture.supplyAsync(() -> {
             String fen = board.getCurrentFEN();
             return getBestMoveWithEvaluation(fen, depth)[0];
@@ -94,7 +94,8 @@ public abstract class Engine {
      * Tries to retrieve stored eval, if it doesn't exist it returns calculateBestMoveWithEvaluation()
      */
     public String[] getBestMoveWithEvaluation(String fen, int depth) {
-        System.out.println("Got to getBestMoveWithEval");
+        System.out.println("Checking if storedEvals contains " + fen);
+        System.out.println("StoredEvals keys: " + storedEvals.keySet());
         if (storedEvals.containsKey(fen)) {
             return storedEvals.get(fen);
         }
