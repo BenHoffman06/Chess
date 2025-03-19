@@ -65,6 +65,10 @@ public class Main {
         board.halfMoveCounter = 0;
         board.reset();
 
+        if (currentEngine.isWhite) {
+            currentEngine.tryPlay(12);
+        }
+
         repaint();
     }
 
