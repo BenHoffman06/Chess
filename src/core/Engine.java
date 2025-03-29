@@ -10,7 +10,7 @@ public abstract class Engine {
     boolean isPlaying = false;
     boolean isWhite = false;
     Board board = Main.board;
-    HashMap<String, String[]> storedEvals = new HashMap<>(); // Maps FEN to evaluations including eval bar and best move in string form
+    HashMap<String, String[]> storedEvalsAndBestMoves = new HashMap<>(); // Maps FEN to evaluations including eval bar and best move in string form // TODO is this really necessary / useful?
     boolean isAwaitingResponse = true;
 
     void tryPlay(int depth) {
@@ -58,7 +58,6 @@ public abstract class Engine {
         });
     }
 
-    // TODO simplify
     public CompletableFuture<String> getBestMoveInNewThread(int depth) {
         System.out.println("Getting best move in new thread.");
         return CompletableFuture.supplyAsync(() -> {
@@ -97,15 +96,15 @@ public abstract class Engine {
     public String[] getBestMoveWithEvaluation(String fen, int depth) {
 //        System.out.println("Checking if storedEvals contains " + fen);
 //        System.out.println("StoredEvals keys: " + storedEvals.keySet());
-        if (storedEvals.containsKey(fen)) {
-            return storedEvals.get(fen);
+        if (storedEvalsAndBestMoves.containsKey(fen)) {
+            return storedEvalsAndBestMoves.get(fen);
         }
         String[] s = new String[0];
         try {
             isAwaitingResponse = true;
             s = calculateBestMoveWithEvaluation(fen, depth);
             isAwaitingResponse = false;
-            storedEvals.put(fen, s);
+            storedEvalsAndBestMoves.put(fen, s);
             board.currentEval = Double.parseDouble(s[1]);
         } catch (Exception e) {
             System.out.println("Couldn't calculate best move with eval..." + e);

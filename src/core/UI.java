@@ -31,7 +31,6 @@ public class UI {
     // Variables to handle promotions
     public static boolean isPromoting = false;
     public static Square promotionSquare = null;
-    public static byte chosenPieceToPromoteTo = 0;
     public static Rectangle[] clickablePromotionRegions = new Rectangle[4];
 
     //region Colors
@@ -164,19 +163,13 @@ public class UI {
     //endregion
 
     public static void handleInvalidMoveTo(Square s) {
-        UI.selectedSquare = null;
+        UI.selectedSquare = null; // TODO CHANGE
 
         UI.redCountdown = 25;
         UI.redSquare = s;
 
         s.repaint();
     }
-
-    public static void handleInvalidMoveTo(Square s, String message) {
-        System.out.println(message);
-        handleInvalidMoveTo(s);
-    }
-
 
     //region GUI and MouseListeners Setup and Rendering
     public static JPanel handleGUI() {
@@ -204,7 +197,7 @@ public class UI {
 //                            System.out.println("You clicked on piece value: " + selectedPiece);
 
                             // Process promotion by calling movePiece with stored from and to
-                            chosenPieceToPromoteTo = selectedPiece;
+                            Main.board.chosenPieceToPromoteTo = selectedPiece;
                             // We skip calling attemptMove first because that was already called to set up piece UI, and now we know the promotion is legal
                             Main.board.executeMove(UI.promotionFrom, UI.promotionTo);
 
@@ -428,7 +421,7 @@ public class UI {
                 if (!Main.currentEngine.isAwaitingResponse) {
                     eval = Main.currentEngine.getEval(12);
                 }
-                eval *= -1;
+//                eval *= -1;
                 double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
                 int divider = (int) (boardBounds.y + boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
                 Rectangle evalBar = new Rectangle(boardBounds.x - 30 * boardBounds.height / 256, boardBounds.y, boardBounds.height / 16, boardBounds.height);

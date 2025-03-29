@@ -1,5 +1,8 @@
 package core;
 
+import com.sun.source.tree.BinaryTree;
+import com.sun.source.tree.Tree;
+
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
@@ -8,7 +11,6 @@ import java.util.Objects;
 
 import static core.Main.*;
 import static core.UI.*;
-import static core.UI.chosenPieceToPromoteTo;
 
 public class Board {
 
@@ -30,6 +32,8 @@ public class Board {
     // Pieces
     public ArrayList<Byte> capturedWhitePieces = new ArrayList<>();
     public ArrayList<Byte> capturedBlackPieces = new ArrayList<>();
+
+    public byte chosenPieceToPromoteTo = 0;
 
     // Turn to move
     public boolean isWhitesMove = true;
@@ -53,7 +57,7 @@ public class Board {
         }
 
         // Hardcode starting eval
-        currentEval = 0.2;
+        currentEval = -0.2;
     }
 
     public Board(String fen) {
@@ -73,25 +77,19 @@ public class Board {
         }
     }
 
-    public Board(Board b) {
-        // Squares
+    public Board(Board original) {
+        // Copy squares
         for (int i = 0; i < 64; i++) {
-            squares[i] = new Square(b.squares[i]);
+            this.squares[i] = new Square(original.squares[i]);
         }
-        // Lost Pieces
-        this.capturedWhitePieces = new ArrayList<>(b.capturedWhitePieces);
-        this.capturedBlackPieces = new ArrayList<>(b.capturedBlackPieces);
 
-        // Turn to move
-        this.isWhitesMove = b.isWhitesMove;
-
-        // En passant
-        this.enPassantTarget = b.enPassantTarget;
-
-        if (Objects.equals(b.getCurrentFEN(), STARTING_FEN)) {
-            // Hardcode starting eval
-            currentEval = 0.2;
-        }
+        // Copy game state
+        this.isWhitesMove = original.isWhitesMove;
+        this.enPassantTarget = original.enPassantTarget != null ?
+                new Square(original.enPassantTarget) : null;
+        this.capturedWhitePieces = new ArrayList<>(original.capturedWhitePieces);
+        this.capturedBlackPieces = new ArrayList<>(original.capturedBlackPieces);
+        this.chosenPieceToPromoteTo = original.chosenPieceToPromoteTo;
     }
 
     public void addSquaresToPanel(JPanel mainPanel) {
@@ -683,7 +681,7 @@ public class Board {
     }
     //endregion
 
-    //region Piece Movement Logic
+    //region Piece Movement Logic // TODO change this to use Move()
     private static ArrayList<Byte> getRawMoves(Square square, Board board) {
         ArrayList<Byte> byteMoves = new ArrayList<>();
         byte piece = square.piece;
@@ -1032,11 +1030,11 @@ public class Board {
     private static void simulateMove(Board on, byte from, byte to) {
         //region Handle promotions
         if (on.squares[from].piece == WHITE_PAWN && to < 8) {
-            on.squares[to].piece = chosenPieceToPromoteTo;
+            on.squares[to].piece = on.chosenPieceToPromoteTo;
 //            System.out.println("New piece: " + board[to].piece);
         }
         else if (on.squares[from].piece == BLACK_PAWN && to >= 56) {
-            on.squares[to].piece = chosenPieceToPromoteTo;
+            on.squares[to].piece = on.chosenPieceToPromoteTo;
 //            System.out.println("New piece: " + board[to].piece);
         }
         //endregion
@@ -1062,6 +1060,7 @@ public class Board {
         }
         //endregion
 
+        on.isWhitesMove = !on.isWhitesMove;
     }
     //endregion
 
@@ -1213,6 +1212,61 @@ public class Board {
             }
         }
         return false; // if there does not exist a piece of the right color which can move
+    }
+    //endregion
+
+    //region Engine
+    public ArrayList<Move> getPossibleMoves() {
+        ArrayList<Move> possibleMoves = new ArrayList<>();
+
+        for (Square from : squares) {
+
+            // Skip this square if empty or has piece of wrong color
+            if (from.piece <= 0 == isWhitesMove) {
+                continue;
+            }
+            // Loop over every square we can move to, adding a move to there to the possibilities
+            ArrayList<Byte> accessibleSquares = accessibleSquaresOf(from, this, true);
+            for (byte to : accessibleSquares) {
+
+                // If move is a promotion, include all 4 variants
+                if (to / 8 == 0 && Math.abs(from.piece) == WHITE_PAWN) {
+                    char[] promotionOptions = isWhitesMove ? new char[]{'Q', 'N', 'R', 'B'} : new char[]{'q', 'n', 'r', 'b'};
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[0]));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[1]));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[2]));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[3]));
+                }
+
+                else {
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName()));
+                }
+            }
+
+        }
+        return possibleMoves;
+    }
+
+    // In Board.java
+    public Board getBoardIfMoveHappened(Move m) {
+        Board possible = new Board(this);
+        // Check if move is a promotion and extract the piece
+        if (m.notation.length() == 5) { // e.g., "a7a8q"
+            char promoChar = m.notation.charAt(4);
+            possible.chosenPieceToPromoteTo = switch (promoChar) {
+                case 'Q' -> WHITE_QUEEN;
+                case 'R' -> WHITE_ROOK;
+                case 'B' -> WHITE_BISHOP;
+                case 'N' -> WHITE_KNIGHT;
+                case 'q' -> BLACK_QUEEN;
+                case 'r' -> BLACK_ROOK;
+                case 'b' -> BLACK_BISHOP;
+                case 'n' -> BLACK_KNIGHT;
+                default -> EMPTY;
+            };
+        }
+        simulateMove(possible, m.square1.index, m.square2.index);
+        return possible;
     }
     //endregion
 

@@ -9,7 +9,8 @@ public class Main {
     public static Board board = new Board();
 
     public static boolean gameOngoing = true;
-    public static Engine currentEngine = null;
+//    public static Engine currentEngine = null;
+    public static MyEngine currentEngine = null;
 
     // Move and position tracking
     public static ArrayList<Move> moves = new ArrayList<>(); // Stores all moves made in the game
@@ -75,17 +76,43 @@ public class Main {
     public static void main(String[] args) {
 
         UI.mainPanel = UI.handleGUI();
-
+        runPerft();
         // Default piece setup
 //        board.reset();
 
-        board.setFromFEN("rnbqkbnr/p2ppppp/8/8/8/8/PPpPPPPP/RNBQKBNR w KQkq - 0 1");
-        currentEngine = new MyEngine();
-        currentEngine.isPlaying = true;
-        currentEngine.isWhite = true;
-        currentEngine.tryPlay(12);
+//        board.setFromFEN("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+//        currentEngine = new MyEngine();
+//        long start = System.currentTimeMillis();
+//        currentEngine.calcEval(3);
+//        long end = System.currentTimeMillis();
+//        System.out.println((start - end) / 1000);
+//        currentEngine.isPlaying = true;
+//        currentEngine.isWhite = false;
+//        currentEngine.tryPlay(12);
 //        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
 
+    }
+
+    /**
+     * Using testing discussed here: <a href="https://www.chessprogramming.org/Perft_Results#:~:text=81076-,Position%205,-This%20position%20was">...</a>
+     */
+    public static void runPerft() {
+
+        board.setFromFEN("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8 ");
+
+        currentEngine = new MyEngine();
+        long time = 0; int depth = 0;
+
+        System.out.println("Starting perft.");
+
+        while (time < 20000) {
+            long start = System.currentTimeMillis();
+            System.out.print("Depth: " + depth);
+            currentEngine.calcEval(depth++);
+            long end = System.currentTimeMillis();
+            time = (end - start);
+            System.out.println(", in: " + time + "ms");
+        }
     }
 
 }
