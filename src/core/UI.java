@@ -1,5 +1,7 @@
 package core;
 
+import org.w3c.dom.css.Rect;
+
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
@@ -168,7 +170,7 @@ public class UI {
         UI.redCountdown = 25;
         UI.redSquare = s;
 
-        s.repaint();
+        repaint(); // TODO make this specific to where this square is
     }
 
     //region GUI and MouseListeners Setup and Rendering
@@ -230,7 +232,7 @@ public class UI {
 
                 // If selecting square, keep accessible moves updated
                 else {
-                    Main.accessibleMoves = Main.board.accessibleSquaresOf(UI.selectedSquare, Main.board, true);
+                    Main.accessibleMoves = Main.board.accessibleSquaresOf(UI.selectedSquare);
                 }
                 //endregion
             }
@@ -308,7 +310,7 @@ public class UI {
 
             private Square getSquareAt(Point p) {
                 for (Square square : Main.board.squares) {
-                    if (square.getBounds().contains(p)) {
+                    if (getSquareBounds(square).contains(p)) {
                         return square;
                     }
                 }
@@ -322,225 +324,21 @@ public class UI {
             @Override
             public void paint(Graphics g) {
                 super.paint(g);
-
-                if (endGamePanelShouldBeShown) {
-                    //region Draw game end UI
-                    // Darken background
-                    g.setColor(new Color(0, 0, 0, 150)); // Semi-transparent black
-                    g.fillRect(0, 0, getWidth(), getHeight());
-
-                    // Draw end game content
-                    Graphics2D g2d = (Graphics2D) g;
-                    endGamePanel.draw(g2d, getWidth(), getHeight());
-
-                    //endregion
-                    return;
-                }
-
-                //region Draw lost pieces and material difference
-
-                // Sort lost pieces: white pieces in natural order, black pieces in reverse order.
-                Main.board.capturedWhitePieces.sort(Byte::compare);
-                Main.board.capturedBlackPieces.sort(Comparator.reverseOrder());
-
-                // Calculate variables for displaying material difference
-                int materialDiff = Main.board.getMaterialDiff();
-                boolean materialOnWhiteSide = (materialDiff > 0);
-
-                // Calculate board metrics for dynamic sizing
                 Rectangle boardBounds = getBoardBounds();
-                int pieceWidth = boardBounds.width / 24;
-                int heightOffset = (int) (boardBounds.width / 2.2);
-                byte previous = 0;
-                int boardRightEdge = boardBounds.x + boardBounds.width;
 
-                // --- Draw white lost pieces ---
-                // Start drawing to the right of the board, vertically centered using heightOffset.
-                Point whiteStart = new Point(boardRightEdge + boardBounds.width / 16, (boardBounds.y + heightOffset) - (pieceWidth / 2));
-                int newX = whiteStart.x;
-                for (int i = 0; i < Main.board.capturedWhitePieces.size(); i++) {
-                    byte piece = Main.board.capturedWhitePieces.get(i);
-                    // If the same type as the previous piece, adjust the x position for a tighter grouping.
-                    if (previous == piece) {
-                        newX -= (int)(pieceWidth / 1.5);
-                    }
-                    Rectangle bounds = new Rectangle(newX, whiteStart.y, pieceWidth, pieceWidth);
-                    g.drawImage(pieceImages.get(piece), bounds.x, bounds.y, bounds.width, bounds.height, this);
-                    previous = piece;
-                    newX += pieceWidth;
-                }
-                if (materialOnWhiteSide && materialDiff != 0) {
-                    g.setColor(Color.WHITE);
-                    g.drawString("+" + materialDiff, newX, whiteStart.y + pieceWidth);
-                }
+                drawSquares(g, mainPanel);
 
-                // --- Draw black lost pieces ---
-                // First, create a white background for each slot.
-                Point blackStart = new Point(boardRightEdge + boardBounds.width / 16,
-                        (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
-                newX = blackStart.x;
-                for (int i = 0; i < Main.board.capturedBlackPieces.size(); i++) {
-                    byte piece = Main.board.capturedBlackPieces.get(i);
-                    if (previous == piece) {
-                        newX -= (int)(pieceWidth / 1.5);
-                    }
-                    Rectangle bounds = new Rectangle(newX, blackStart.y, pieceWidth, pieceWidth);
-                    g.setColor(Color.WHITE);
-                    g.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-                    previous = piece;
-                    newX += pieceWidth;
-                }
+                tryDrawGameEndOverlay(g, mainPanel);
 
-                if (!materialOnWhiteSide && materialDiff != 0) {
-                    g.drawString("+" + -1 * materialDiff, newX, blackStart.y + pieceWidth);
-                }
+                drawMaterialDifference(g, mainPanel, boardBounds);
 
+                drawEvalBar(g, mainPanel, boardBounds);
 
-                // Then, draw the black pieces over the background.
-                // Reset positioning variables for a clean draw pass.
-                previous = 0;
-                blackStart = new Point(boardRightEdge + boardBounds.width / 16,
-                        (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
-                newX = blackStart.x;
-                for (int i = 0; i < Main.board.capturedBlackPieces.size(); i++) {
-                    byte piece = Main.board.capturedBlackPieces.get(i);
-                    if (previous == piece) {
-                        newX -= (int)(pieceWidth / 1.5);
-                    }
-                    Rectangle bounds = new Rectangle(newX, blackStart.y, pieceWidth, pieceWidth);
-                    g.drawImage(pieceImages.get(piece), bounds.x, bounds.y, bounds.width, bounds.height, this);
-                    previous = piece;
-                    newX += pieceWidth;
-                }
-                //endregion
+                tryDrawPromotionOverlay(g, mainPanel);
 
-                //region Draw Evaluation
+                tryDrawingDraggingPieces(g, mainPanel);
 
-                double stored = Main.board.currentEval;
-                double eval = stored;
-                if (!Main.currentEngine.isAwaitingResponse) {
-                    eval = Main.currentEngine.getEval(12);
-                }
-//                eval *= -1;
-                double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
-                int divider = (int) (boardBounds.y + boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
-                Rectangle evalBar = new Rectangle(boardBounds.x - 30 * boardBounds.height / 256, boardBounds.y, boardBounds.height / 16, boardBounds.height);
-
-                // Draw white part
-                g.setColor(Color.WHITE);
-                int whiteHeight = evalBar.y + evalBar.height - divider;
-                g.fillRect(evalBar.x, divider, evalBar.width, whiteHeight);
-
-                // Draw black part
-                g.setColor(new Color(64, 61, 57));
-                g.fillRect(evalBar.x, evalBar.y, evalBar.width, evalBar.height - whiteHeight);
-
-                // Draw eval number
-                g.setColor(BACKGROUND);
-                g.drawString(String.valueOf(eval == 0 ? 0 : -1 * eval), boardBounds.x - (int) (boardBounds.height / 9.5), evalBar.y + evalBar.height - 24);
-
-
-                //endregion
-
-
-                if (isPromoting) {
-                    //region Draw promotion UI
-//                    System.out.println("Trying to draw promotion UI! 🤞");
-
-                    // Calculate relevant variables
-                    int squareSize = Main.board.squares[0].getWidth();
-                    Point promotionPos = UI.getSquarePosition(promotionSquare.index); // getScreenPosition
-                    boolean isWhitePromotion = promotionSquare.index < 8;
-                    int direction = isWhitePromotion ? 1 : -1;
-                    int y = (promotionPos.y + 4 * squareSize * direction);
-                    int Undoheight = (int) (squareSize * (69.0 / 137));
-                    if (!isWhitePromotion) {
-                        y = y - Undoheight + squareSize;
-                    }
-                    promotionEscapeBounds = new Rectangle(promotionPos.x, y, squareSize, Undoheight);
-//                    System.out.println("Promotion escape bounds: " + promotionEscapeBounds);
-                    //region Draw promotion UI background
-                    BufferedImage whitePromoImg = promotionEscapeHover ? pieceImages.get(PROMO_BACKGROUND_UNDO_SELECTED) : pieceImages.get(PROMO_BACKGROUND);
-                    BufferedImage blackPromoImg = flipImageVertically(whitePromoImg, (Graphics2D) g);
-
-                    int height = squareSize * whitePromoImg.getHeight(this) / whitePromoImg.getWidth(this);
-
-                    if (isWhitePromotion) {
-                        g.drawImage(whitePromoImg, promotionPos.x, promotionPos.y, squareSize, height, this);
-                    } else {
-                        g.drawImage(blackPromoImg, promotionPos.x, promotionPos.y - height + squareSize, squareSize, height, this);
-                    }
-                    //endregion
-
-                    // Define the order of pieces to display
-                    byte[] promotionPieces = isWhitePromotion
-                            ? new byte[] { Main.WHITE_QUEEN, Main.WHITE_KNIGHT, Main.WHITE_ROOK, Main.WHITE_BISHOP }
-                            : new byte[] { Main.BLACK_QUEEN, Main.BLACK_KNIGHT, Main.BLACK_ROOK, Main.BLACK_BISHOP };
-
-                    // For each piece option:
-                    for (int i = 0; i < 4; i++) {
-
-                        // Calculate updated y location for drawing
-                        int optionY = promotionPos.y + i * direction * squareSize;
-
-                        // Add rectangle to clickable regions
-                        Rectangle rect = new Rectangle(promotionPos.x, optionY, squareSize, squareSize);
-                        clickablePromotionRegions[i] = rect;
-
-                        // Draw piece
-                        g.drawImage(pieceImages.get(promotionPieces[i]), promotionPos.x, optionY, squareSize, squareSize, this);
-                    }
-
-                    //endregion
-                    return;
-                }
-
-                // Draw dragging pieces last (on top of everything)
-                if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && selectedSquare.isDragging()) {
-                    int x = dragX - selectedSquare.getWidth() / 2;
-                    int y = dragY - selectedSquare.getWidth() / 2;
-                    BufferedImage img = pieceImages.get(selectedSquare.piece);
-                    g.drawImage(img, x, y, selectedSquare.getWidth(), selectedSquare.getHeight(), this);
-                }
-
-                // Draw accessible moves
-                for (Square s : Main.board.squares) {
-                    for (Byte b : Main.accessibleMoves ) {
-                        if ((int) b == (int) s.index){
-                            double width = (.27 * s.getWidth());
-                            int topLeft = (int) (((double) s.getWidth() / 2) - (width / 2));
-
-                            Point pos = getSquarePosition(s.index);
-                            Color color = (s.isWhite()) ? SELECTED_WHITE : SELECTED_BLACK;
-                            g.setColor(color);
-
-                            if (s.piece == Main.EMPTY) {
-                                g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
-                            } else {
-                                BufferedImage img = (s.isWhite()) ? pieceImages.get(TAKEABLE_WHITE) : pieceImages.get(TAKEABLE_BLACK);
-                                g.drawImage(img, pos.x, pos.y, s.getWidth(), s.getHeight(), this);
-                            }
-                        }
-                    }
-                }
-            }
-
-            private BufferedImage flipImageVertically(BufferedImage img, Graphics2D g2d) {
-                // Create an AffineTransform to flip the image vertically
-                AffineTransform transform = new AffineTransform();
-                transform.translate(0, img.getHeight(null)); // Move the image down by its height
-                transform.scale(1, -1); // Flip vertically
-
-                // Create a new BufferedImage to hold the flipped image
-                BufferedImage flippedImg = new BufferedImage(
-                        img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB);
-
-                // Draw the original image onto the new image with the applied transformation
-                Graphics2D g2dFlipped = flippedImg.createGraphics();
-                g2dFlipped.drawImage(img, transform, null);
-                g2dFlipped.dispose();
-
-                return flippedImg;
+                tryDrawingAccessibleSquares(g, mainPanel);
             }
         };
 
@@ -558,15 +356,15 @@ public class UI {
         frame.setSize(1000, 550);
         frame.setLocationRelativeTo(null);
 
-        Main.board.addSquaresToPanel(mainPanel);
-
         // Set up listener to resize board on window resize
         frame.addComponentListener(new ComponentAdapter() {
             public void componentResized(ComponentEvent evt) {
-                resizeSquares(mainPanel);
+//                resizeSquares(mainPanel);
+                repaint();
             }
         });
-        resizeSquares((JPanel) frame.getContentPane());
+//        resizeSquares((JPanel) frame.getContentPane());
+        repaint();
 
         //region redCountdown decrementer
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
@@ -585,6 +383,244 @@ public class UI {
         return mainPanel;
     }
 
+    public static void tryDrawGameEndOverlay(Graphics g, JPanel panel) {
+        if (endGamePanelShouldBeShown) {
+            // Darken background
+            g.setColor(new Color(0, 0, 0, 150)); // Semi-transparent black
+            g.fillRect(0, 0, panel.getWidth(), panel.getHeight());
+
+            // Draw end game content
+            Graphics2D g2d = (Graphics2D) g;
+            endGamePanel.draw(g2d, panel.getWidth(), panel.getHeight());
+        }
+    }
+
+    public static void drawMaterialDifference(Graphics g, JPanel panel, Rectangle boardBounds) {
+
+
+        // Sort lost pieces: white pieces in natural order, black pieces in reverse order.
+        Main.board.capturedWhitePieces.sort(Byte::compare);
+        Main.board.capturedBlackPieces.sort(Comparator.reverseOrder());
+
+        // Calculate variables for displaying material difference
+        int materialDiff = Main.board.getMaterialDiff();
+        boolean materialOnWhiteSide = (materialDiff > 0);
+        int pieceWidth = boardBounds.width / 24;
+        int heightOffset = (int) (boardBounds.width / 2.2);
+        byte previous = 0;
+        int boardRightEdge = boardBounds.x + boardBounds.width;
+
+        // --- Draw white lost pieces ---
+        // Start drawing to the right of the board, vertically centered using heightOffset.
+        Point whiteStart = new Point(boardRightEdge + boardBounds.width / 16, (boardBounds.y + heightOffset) - (pieceWidth / 2));
+        int newX = whiteStart.x;
+        for (int i = 0; i < Main.board.capturedWhitePieces.size(); i++) {
+            byte piece = Main.board.capturedWhitePieces.get(i);
+            // If the same type as the previous piece, adjust the x position for a tighter grouping.
+            if (previous == piece) {
+                newX -= (int)(pieceWidth / 1.5);
+            }
+            Rectangle bounds = new Rectangle(newX, whiteStart.y, pieceWidth, pieceWidth);
+            g.drawImage(pieceImages.get(piece), bounds.x, bounds.y, bounds.width, bounds.height, panel);
+            previous = piece;
+            newX += pieceWidth;
+        }
+        if (materialOnWhiteSide && materialDiff != 0) {
+            g.setColor(Color.WHITE);
+            g.drawString("+" + materialDiff, newX, whiteStart.y + pieceWidth);
+        }
+
+        // --- Draw black lost pieces ---
+        // First, create a white background for each slot.
+        Point blackStart = new Point(boardRightEdge + boardBounds.width / 16,
+                (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
+        newX = blackStart.x;
+        for (int i = 0; i < Main.board.capturedBlackPieces.size(); i++) {
+            byte piece = Main.board.capturedBlackPieces.get(i);
+            if (previous == piece) {
+                newX -= (int)(pieceWidth / 1.5);
+            }
+            Rectangle bounds = new Rectangle(newX, blackStart.y, pieceWidth, pieceWidth);
+            g.setColor(Color.WHITE);
+            g.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+            previous = piece;
+            newX += pieceWidth;
+        }
+
+        if (!materialOnWhiteSide && materialDiff != 0) {
+            g.drawString("+" + -1 * materialDiff, newX, blackStart.y + pieceWidth);
+        }
+
+
+        // Then, draw the black pieces over the background.
+        // Reset positioning variables for a clean draw pass.
+        previous = 0;
+        blackStart = new Point(boardRightEdge + boardBounds.width / 16,
+                (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
+        newX = blackStart.x;
+        for (int i = 0; i < Main.board.capturedBlackPieces.size(); i++) {
+            byte piece = Main.board.capturedBlackPieces.get(i);
+            if (previous == piece) {
+                newX -= (int)(pieceWidth / 1.5);
+            }
+            Rectangle bounds = new Rectangle(newX, blackStart.y, pieceWidth, pieceWidth);
+            g.drawImage(pieceImages.get(piece), bounds.x, bounds.y, bounds.width, bounds.height, panel);
+            previous = piece;
+            newX += pieceWidth;
+        }
+    }
+
+    public static void drawEvalBar(Graphics g, JPanel panel, Rectangle boardBounds) {
+        double stored = Main.board.currentEval;
+        double eval = stored;
+        if (!Main.currentEngine.isAwaitingResponse) {
+            eval = Main.currentEngine.getEval(12);
+        }
+//                eval *= -1;
+        double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
+        int divider = (int) (boardBounds.y + boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
+        Rectangle evalBar = new Rectangle(boardBounds.x - 30 * boardBounds.height / 256, boardBounds.y, boardBounds.height / 16, boardBounds.height);
+
+        // Draw white part
+        g.setColor(Color.WHITE);
+        int whiteHeight = evalBar.y + evalBar.height - divider;
+        g.fillRect(evalBar.x, divider, evalBar.width, whiteHeight);
+
+        // Draw black part
+        g.setColor(new Color(64, 61, 57));
+        g.fillRect(evalBar.x, evalBar.y, evalBar.width, evalBar.height - whiteHeight);
+
+        // Draw eval number
+        g.setColor(BACKGROUND);
+        g.drawString(String.valueOf(eval == 0 ? 0 : -1 * eval), boardBounds.x - (int) (boardBounds.height / 9.5), evalBar.y + evalBar.height - 24);
+    }
+
+    public static void tryDrawPromotionOverlay(Graphics g, JPanel panel) {
+        if (isPromoting) {
+            // Calculate relevant variables
+            int squareSize = getSquareSize();
+
+            Point promotionPos = UI.getSquarePosition(promotionSquare.index); // getScreenPosition
+            boolean isWhitePromotion = promotionSquare.index < 8;
+            int direction = isWhitePromotion ? 1 : -1;
+            int y = (promotionPos.y + 4 * squareSize * direction);
+            int Undoheight = (int) (squareSize * (69.0 / 137));
+            if (!isWhitePromotion) {
+                y = y - Undoheight + squareSize;
+            }
+            promotionEscapeBounds = new Rectangle(promotionPos.x, y, squareSize, Undoheight);
+//                    System.out.println("Promotion escape bounds: " + promotionEscapeBounds);
+            //region Draw promotion UI background
+            BufferedImage whitePromoImg = promotionEscapeHover ? pieceImages.get(PROMO_BACKGROUND_UNDO_SELECTED) : pieceImages.get(PROMO_BACKGROUND);
+            BufferedImage blackPromoImg = flipImageVertically(whitePromoImg, (Graphics2D) g);
+
+            int height = squareSize * whitePromoImg.getHeight(panel) / whitePromoImg.getWidth(panel);
+
+            if (isWhitePromotion) {
+                g.drawImage(whitePromoImg, promotionPos.x, promotionPos.y, squareSize, height, panel);
+            } else {
+                g.drawImage(blackPromoImg, promotionPos.x, promotionPos.y - height + squareSize, squareSize, height, panel);
+            }
+
+            // Define the order of pieces to display
+            byte[] promotionPieces = isWhitePromotion
+                    ? new byte[] { Main.WHITE_QUEEN, Main.WHITE_KNIGHT, Main.WHITE_ROOK, Main.WHITE_BISHOP }
+                    : new byte[] { Main.BLACK_QUEEN, Main.BLACK_KNIGHT, Main.BLACK_ROOK, Main.BLACK_BISHOP };
+
+            // For each piece option:
+            for (int i = 0; i < 4; i++) {
+
+                // Calculate updated y location for drawing
+                int optionY = promotionPos.y + i * direction * squareSize;
+
+                // Add rectangle to clickable regions
+                Rectangle rect = new Rectangle(promotionPos.x, optionY, squareSize, squareSize);
+                clickablePromotionRegions[i] = rect;
+
+                // Draw piece
+                g.drawImage(pieceImages.get(promotionPieces[i]), promotionPos.x, optionY, squareSize, squareSize, panel);
+            }
+        }
+    }
+
+    public static void tryDrawingDraggingPieces(Graphics g, JPanel panel) {
+        // Draw dragging pieces last (on top of everything)
+        if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && selectedSquare.isDragging()) {
+            int x = dragX - getSquareSize() / 2;
+            int y = dragY - getSquareSize() / 2;
+            BufferedImage img = pieceImages.get(selectedSquare.piece);
+            g.drawImage(img, x, y, getSquareSize(), getSquareSize(), panel);
+        }
+    }
+
+    public static void tryDrawingAccessibleSquares(Graphics g, JPanel panel) {
+
+        for (Square s : Main.board.squares) {
+            for (Byte b : Main.accessibleMoves ) {
+                if ((int) b == (int) s.index){
+                    double width = (.27 * getSquareSize());
+                    int topLeft = (int) (((double) getSquareSize() / 2) - (width / 2));
+
+                    Point pos = getSquarePosition(s.index);
+                    Color color = (s.isWhite()) ? SELECTED_WHITE : SELECTED_BLACK;
+                    g.setColor(color);
+
+                    if (s.piece == Main.EMPTY) {
+                        g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
+                    } else {
+                        BufferedImage img = (s.isWhite()) ? pieceImages.get(TAKEABLE_WHITE) : pieceImages.get(TAKEABLE_BLACK);
+                        g.drawImage(img, pos.x, pos.y, getSquareSize(), getSquareSize(), panel);
+                    }
+                }
+            }
+        }
+    }
+
+    public static void drawSquares(Graphics g, JPanel panel) {
+        for (Square s : Main.board.squares) {
+
+            Rectangle board = getBoardBounds();
+            int squareSize = Math.min(board.width, board.height) / 8;
+
+            g.setColor(s.getCurrentColor());
+            Rectangle squareBounds = getSquareBounds(s);
+            g.fillRect(squareBounds.x, squareBounds.y, squareBounds.width, squareBounds.height);
+
+            // Draw checkmate image if checkmated
+            if (s.piece == Main.WHITE_KING && Main.board.isWhitesMove || s.piece == Main.BLACK_KING && !Main.board.isWhitesMove) {
+                if (Main.board.checkGameOutcome() == 1) {
+                    BufferedImage img = UI.pieceImages.get(CHECKMATE);
+                    g.drawImage(img, 0, 0, squareSize, squareSize, panel);
+                }
+            }
+
+            // Draw piece if NOT being dragged
+            if (s.piece != Main.EMPTY && !s.isDragging()) {
+                BufferedImage img = pieceImages.get(s.piece);
+                g.drawImage(img, squareBounds.x, squareBounds.y, squareBounds.width, squareBounds.height, panel);
+
+            }
+        }
+    }
+
+    private static BufferedImage flipImageVertically(BufferedImage img, Graphics2D g2d) {
+        // Create an AffineTransform to flip the image vertically
+        AffineTransform transform = new AffineTransform();
+        transform.translate(0, img.getHeight(null)); // Move the image down by its height
+        transform.scale(1, -1); // Flip vertically
+
+        // Create a new BufferedImage to hold the flipped image
+        BufferedImage flippedImg = new BufferedImage(
+                img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+
+        // Draw the original image onto the new image with the applied transformation
+        Graphics2D g2dFlipped = flippedImg.createGraphics();
+        g2dFlipped.drawImage(img, transform, null);
+        g2dFlipped.dispose();
+
+        return flippedImg;
+    }
+
     public static void repaint() {
         mainPanel.repaint();
     }
@@ -597,7 +633,7 @@ public class UI {
         mainPanel.repaint();
     }
 
-    private static void resizeSquares(JPanel panel) {
+    private static void resizeSquares(JPanel panel) { // TODO remove this method
         Rectangle board = getBoardBounds();
         int squareSize = Math.min(board.width, board.height) / 8;
 
@@ -610,6 +646,19 @@ public class UI {
 
         // Repaint only the chessboard area
         panel.repaint(board.x, board.y, board.width, board.height);
+    }
+
+    public static Rectangle getSquareBounds(Square s) {
+        Rectangle board = getBoardBounds();
+        int squareSize = Math.min(board.width, board.height) / 8; // TODO can we make this simpler by assuming the board is always a square?
+        int row = s.index / 8;
+        int col = s.index % 8;
+        return new Rectangle(board.x + col * squareSize, board.y + row * squareSize, squareSize, squareSize);
+    }
+
+    public static int getSquareSize() {
+        Rectangle board = getBoardBounds();
+        return Math.min(board.width, board.height) / 8;
     }
     //endregion
 

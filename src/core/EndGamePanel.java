@@ -3,6 +3,8 @@ package core;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
+import static core.UI.getSquareSize;
+
 public class EndGamePanel {
     private final Button rematchButton;
     private final Button exitButton;
@@ -65,7 +67,7 @@ public class EndGamePanel {
 
     public void draw(Graphics2D g2d, int parentWidth, int parentHeight) {
         // Calculate panel dimensions based on chess square size
-        int squareSize = Main.board.squares[0].getWidth();
+        int squareSize = getSquareSize();
         int panelWidth = (int)(squareSize * 3.25);
         int panelHeight = (int)(panelWidth * (334.0/323.0));
         int x = (parentWidth - panelWidth) / 2;

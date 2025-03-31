@@ -5,9 +5,7 @@ import com.sun.source.tree.Tree;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Objects;
+import java.util.*;
 
 import static core.Main.*;
 import static core.UI.*;
@@ -26,6 +24,7 @@ public class Board {
             "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
             "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
     };
+    private static final Map<String, Square> nameToSquare = new HashMap<>();
 
     public static final String STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -47,55 +46,74 @@ public class Board {
 
     public double currentEval;
 
+
     //region Initialization and Setup
     public Board() {
         // Fill with squares
         for (byte i = 0; i < 64; i++) {
-            Color color = (i + i / 8) % 2 == 0 ? UI.WHITE : UI.BLACK;
-            Square square = new Square(color, i);
+            Square square = new Square(i);
             squares[i] = square;
+            nameToSquare.put(squareName[i], square);
         }
 
         // Hardcode starting eval
         currentEval = -0.2;
     }
 
-    public Board(String fen) {
-        // Fill with squares
-        for (byte i = 0; i < 64; i++) {
-            Color color = (i + i / 8) % 2 == 0 ? UI.WHITE : UI.BLACK;
-            Square square = new Square(color, i);
-            squares[i] = square;
-        }
-
-        // Set up board to comply with FEN
-        setFromFEN(fen);
-
-        if (Objects.equals(fen, STARTING_FEN)) {
-            // Hardcode starting eval
-            currentEval = 0.2;
-        }
-    }
+    //
+//    public Board(Board original, byte from, byte to) {
+//        byte movingPieceType = (byte) Math.abs(original.squares[from].piece);
+//
+//        // Shallow copy squares
+//        System.arraycopy(original.squares, 0, this.squares, 0, 64);
+//
+//        // Deep copy from and to squares
+//        this.squares[from] = new Square(original.squares[from]);
+//        this.squares[to] = new Square(original.squares[from]);
+//
+//        //region Deep copy castling squares if necessary
+//        boolean isCastling = movingPieceType == WHITE_KING && Math.abs(from - to) == 2;
+//        if (isCastling) {
+//            for (int i = -4; i <= 3; i++) {
+//                this.squares[from + i] = new Square(original.squares[from + i]);
+//            }
+//        }
+//        //endregion
+//
+//        //region Deep copy possible en passant locations if necessary
+//        boolean isPawnCaptureFormation = (Math.abs(from - to) == 7 || Math.abs(from - to) == 9);
+//        if (isPawnCaptureFormation && movingPieceType == WHITE_PAWN) {
+//            // Deep copy 2 other squares in 2x2 area to also deep copy en passant squares
+//            if (from - to == 7 || to - from == 9) {
+//                this.squares[from + 1] = new Square(original.squares[from + 1]);
+//            }
+//            if (to - from == 7 || from - to == 9) {
+//                this.squares[from - 1] = new Square(original.squares[from - 1]);
+//            }
+//        }
+//        //endregion
+//
+//        // Copy game state
+//        this.isWhitesMove = original.isWhitesMove;
+//        this.enPassantTarget = original.enPassantTarget != null ?
+//                new Square(original.enPassantTarget) : null;
+//        this.capturedWhitePieces = new ArrayList<>(original.capturedWhitePieces);
+//        this.capturedBlackPieces = new ArrayList<>(original.capturedBlackPieces);
+//        this.chosenPieceToPromoteTo = original.chosenPieceToPromoteTo;
+//    }
 
     public Board(Board original) {
-        // Copy squares
-        for (int i = 0; i < 64; i++) {
+        // Deep copy all squares
+        for (byte i = 0; i < 64; i++) {
             this.squares[i] = new Square(original.squares[i]);
         }
-
-        // Copy game state
+        // Copy other fields
         this.isWhitesMove = original.isWhitesMove;
         this.enPassantTarget = original.enPassantTarget != null ?
                 new Square(original.enPassantTarget) : null;
         this.capturedWhitePieces = new ArrayList<>(original.capturedWhitePieces);
         this.capturedBlackPieces = new ArrayList<>(original.capturedBlackPieces);
         this.chosenPieceToPromoteTo = original.chosenPieceToPromoteTo;
-    }
-
-    public void addSquaresToPanel(JPanel mainPanel) {
-        for (Square s : squares) {
-            mainPanel.add(s);
-        }
     }
 
     public void reset() {
@@ -193,7 +211,7 @@ public class Board {
         // if 3rd to last section has an alphabetic character that's the en passant-able pawn
         String thirdToLastSection = fenSections[fenSections.length - 3];
         if (thirdToLastSection.chars().anyMatch(Character::isLowerCase)) {
-            Square newEnPassantTarget = Square.convertStringToSquare(thirdToLastSection);
+            Square newEnPassantTarget = convertStringToSquare(thirdToLastSection);
             if (newEnPassantTarget != null) {
                 setEnPassantTarget(newEnPassantTarget);
             }
@@ -407,15 +425,7 @@ public class Board {
     }
 
     public Square convertStringToSquare(String s) {
-        s.trim();
-        for (int i = 0; i < squareName.length; i++) {
-            String name = squareName[i];
-            if (name.equals(s)) {
-                return squares[i];
-            }
-        }
-        System.out.println("returning null for " + s);
-        return null;
+        return nameToSquare.getOrDefault(s, null);
     }
 
     private int getPieceCount(byte piece) {
@@ -485,7 +495,7 @@ public class Board {
         // Reset accessible moves
         accessibleMoves.clear();
 
-        boolean canMakeMove = (accessibleSquaresOf(square1, board, true).contains(square2.index));
+        boolean canMakeMove = board.accessibleSquaresOf(square1).contains(square2.index);
         if (canMakeMove) {
 
             //region Set up promotion prompt if promoting and prompt is not already up
@@ -538,7 +548,7 @@ public class Board {
         }
 
         if (square2.piece != EMPTY) {
-            board.handleCapture(square2.piece);
+            board.handleCapture(square2.piece, true);
             takesString = "x";
         }
 
@@ -564,8 +574,7 @@ public class Board {
 
                 // Update
                 System.out.println(rookSquare);
-                rookSquare.repaint();
-                otherSide.repaint();
+                repaint();
 
                 // Return notation
                 moveNotation = "O-O";
@@ -585,8 +594,7 @@ public class Board {
                 square1.piece = EMPTY;
 
                 // Update
-                rookSquare.repaint();
-                otherSide.repaint();
+                repaint();
 
                 // Return notation
                 moveNotation = "O-O-O";
@@ -618,7 +626,7 @@ public class Board {
             Square behind = board.squares[square2.index + Integer.signum(square1.piece) * 8];
             behind.piece = EMPTY;
             takesString = "x";
-            board.handleCapture((byte) (square1.piece * -1));
+            board.handleCapture((byte) (square1.piece * -1), true);
         }
         //endregion
 
@@ -671,22 +679,22 @@ public class Board {
     }
 
 
-    public void handleCapture(byte piece) {
+    public void handleCapture(byte piece, boolean playSound) {
         if (piece == EMPTY) {
             System.out.println("Cannot capture an empty piece!!");
         }
         ArrayList<Byte> capturedPiecesList = (piece > 0) ? capturedWhitePieces : capturedBlackPieces;
         capturedPiecesList.add(piece);
-        UI.playSound("sounds/Capture.wav");
+
+        if (playSound) UI.playSound("sounds/Capture.wav");
     }
     //endregion
 
     //region Piece Movement Logic // TODO change this to use Move()
-    private static ArrayList<Byte> getRawMoves(Square square, Board board) {
+    private ArrayList<Byte> getRawMoves(Square square) {
         ArrayList<Byte> byteMoves = new ArrayList<>();
         byte piece = square.piece;
         byte location = square.index;
-
 
         int squaresLeft = location % 8;          // Squares to the left edge
         int squaresRight = 7 - squaresLeft;      // Squares to the right edge
@@ -699,20 +707,20 @@ public class Board {
                 }
 
                 // If no pieces are in front of the pawn, it can move forward
-                Square upperSquare = board.squares[location - 8];
+                Square upperSquare = squares[location - 8];
                 if (upperSquare.isEmpty()) {
                     byteMoves.add((byte) (location - 8));
 
                     // Pawn can also move two squares if on the 2nd rank and no piece on the 4th rank
-                    if (location / 8 == 6 && board.squares[location - 16].isEmpty()) {
+                    if (location / 8 == 6 && squares[location - 16].isEmpty()) {
                         byteMoves.add((byte) (location - 16));
                     }
                 }
 
                 // If not on the 1st file
                 if (squaresLeft > 0) {
-                    Square upperLeftSquare = board.squares[location - 9];
-                    Square leftSquare = board.squares[location - 1];
+                    Square upperLeftSquare = squares[location - 9];
+                    Square leftSquare = squares[location - 1];
 
                     // And if there's a black piece to the upper left:
                     if (upperLeftSquare.piece < 0) {
@@ -725,7 +733,7 @@ public class Board {
                     if (leftSquare.piece == BLACK_PAWN) {
 
                         // And if the space behind it is an En Passant Target
-                        if (upperLeftSquare.equals(board.getEnPassantTarget()))  {
+                        if (upperLeftSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the upper left
                             byteMoves.add((byte) (location - 9));
@@ -735,8 +743,8 @@ public class Board {
 
                 // If not on the 8th file
                 if (squaresRight > 0) {
-                    Square upperRightSquare = board.squares[location - 7];
-                    Square rightSquare = board.squares[location + 1];
+                    Square upperRightSquare = squares[location - 7];
+                    Square rightSquare = squares[location + 1];
 
                     // And if there's a black piece to the upper right:
                     if (upperRightSquare.piece < 0) {
@@ -749,7 +757,7 @@ public class Board {
                     if (rightSquare.piece == BLACK_PAWN) {
 
                         // And if the space behind it is an En Passant Target
-                        if (upperRightSquare.equals(board.getEnPassantTarget()))  {
+                        if (upperRightSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the upper right
                             byteMoves.add((byte) (location - 7));
@@ -764,20 +772,20 @@ public class Board {
                 }
 
                 // If no pieces are below the pawn, it can move down
-                Square lowerSquare = board.squares[location + 8];
+                Square lowerSquare = squares[location + 8];
                 if (lowerSquare.isEmpty()) {
                     byteMoves.add((byte) (location + 8));
 
                     // Pawn can also move two squares if on the 7th rank and no piece on the 5th rank
-                    if (location / 8 == 1 && board.squares[location + 16].isEmpty()) {
+                    if (location / 8 == 1 && squares[location + 16].isEmpty()) {
                         byteMoves.add((byte) (location + 16));
                     }
                 }
 
                 // If not on the 1st file
                 if (squaresLeft > 0) {
-                    Square lowerLeftSquare = board.squares[location + 7];
-                    Square leftSquare = board.squares[location - 1];
+                    Square lowerLeftSquare = squares[location + 7];
+                    Square leftSquare = squares[location - 1];
 
                     // And if there's a white piece to the lower left:
                     if (lowerLeftSquare.piece > 0) {
@@ -790,7 +798,7 @@ public class Board {
                     if (leftSquare.piece == WHITE_PAWN) {
 
                         // And if the space behind it is an En Passant Target
-                        if (lowerLeftSquare.equals(board.getEnPassantTarget()))  {
+                        if (lowerLeftSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the lower left
                             byteMoves.add((byte) (location + 7));
@@ -800,8 +808,8 @@ public class Board {
 
                 // If not on the 8th file
                 if (squaresRight > 0) {
-                    Square lowerRightSquare = board.squares[location + 9];
-                    Square rightSquare = board.squares[location + 1];
+                    Square lowerRightSquare = squares[location + 9];
+                    Square rightSquare = squares[location + 1];
 
                     // And if there's a white piece to the lower right:
                     if (lowerRightSquare.piece > 0) {
@@ -814,7 +822,7 @@ public class Board {
                     if (rightSquare.piece == WHITE_PAWN) {
 
                         // And if the space behind it is an En Passant Target
-                        if (lowerRightSquare.equals(board.getEnPassantTarget()))  {
+                        if (lowerRightSquare.equals(getEnPassantTarget()))  {
                             // The pawn can capture diagonally to the lower right
                             byteMoves.add((byte) (location + 9));
                         }
@@ -838,7 +846,7 @@ public class Board {
                         if (fileDiff + rankDiff == 3) {
 
                             // And if the target square is empty or has an enemy piece
-                            if ((board.squares[target].piece * piece <= 0)) {
+                            if ((squares[target].piece * piece <= 0)) {
 
                                 // Add it to moves
                                 byteMoves.add((byte) target);
@@ -880,11 +888,11 @@ public class Board {
                         int target = newY * 8 + newX;
 
                         // If the square is empty, add it to moves
-                        if (board.squares[target].isEmpty()) {
+                        if (squares[target].isEmpty()) {
                             byteMoves.add((byte) target);
                         }
                         // If the square has an enemy piece, add it and stop
-                        else if (board.squares[target].piece * piece < 0) {
+                        else if (squares[target].piece * piece < 0) {
                             byteMoves.add((byte) target);
                             break;
                         }
@@ -912,7 +920,7 @@ public class Board {
                         if (fileDiff <= 1 && rankDiff <= 1) {
 
                             // And if the target square is empty or has an enemy piece
-                            if ((board.squares[target].piece * piece <= 0)) {
+                            if ((squares[target].piece * piece <= 0)) {
 
                                 // Add to moves
                                 byteMoves.add((byte) target);
@@ -927,12 +935,12 @@ public class Board {
                     // Kingside castling:
 
                     // If there is space
-                    Square ks1 = board.squares[location + 1];
-                    Square ks2 = board.squares[location + 2];
+                    Square ks1 = squares[location + 1];
+                    Square ks2 = squares[location + 2];
                     if (ks1.isEmpty() && ks2.isEmpty()) {
 
                         // And if rook has not moved
-                        if (board.squares[location + 3].hasNotChanged()) {
+                        if (squares[location + 3].hasNotChanged()) {
 
                             // Add to moves
                             byteMoves.add((byte) (location + 2));
@@ -942,13 +950,13 @@ public class Board {
                     // Queenside castling:
 
                     // If there is space
-                    Square qs1 = board.squares[location - 1];
-                    Square qs2 = board.squares[location - 2];
-                    Square qs3 = board.squares[location - 3];
+                    Square qs1 = squares[location - 1];
+                    Square qs2 = squares[location - 2];
+                    Square qs3 = squares[location - 3];
                     if (qs1.isEmpty() && qs2.isEmpty() && qs3.isEmpty()) {
 
                         // And rook has not moved
-                        if (board.squares[location - 4].hasNotChanged())  {
+                        if (squares[location - 4].hasNotChanged())  {
 
                             // Add to moves
                             byteMoves.add((byte) (location - 2));
@@ -962,81 +970,77 @@ public class Board {
         return byteMoves;
     }
 
-    public static ArrayList<Byte> accessibleSquaresOf(Square square, Board board, boolean checkForChecks) {
+    public ArrayList<Byte> accessibleSquaresOf(Square square) {
         ArrayList<Byte> validMoves = new ArrayList<>();
         byte piece = square.piece;
-        byte location = square.index;
+        byte from = square.index;
 
         // Get all potential moves without considering checks
-        ArrayList<Byte> rawMoves = getRawMoves(square, board);
+        ArrayList<Byte> rawMoves = getRawMoves(square);
 
-        if (checkForChecks) {
-            // Verify each move doesn't leave king in check
-            for (Byte move : rawMoves) {
-                // Save the current enPassantTarget
-                Square originalEnPassant = board.getEnPassantTarget();
+        // Verify each move doesn't leave king in check
+        for (Byte to : rawMoves) {
+            // Save the current enPassantTarget
+            Square originalEnPassant = getEnPassantTarget();
 
-                Board simulatedBoard = new Board(board);
-                simulateMove(simulatedBoard, location, move);
-                boolean isInCheck = isKingInCheck(simulatedBoard, piece > 0);
+            Board simulatedBoard = new Board(this);
+            simulateMove(simulatedBoard, from, to);
+            boolean isInCheck = isKingInCheck(simulatedBoard, piece > 0);
 
-                // Restore enPassantTarget after simulation
-                if (originalEnPassant != null) {
-                    board.setEnPassantTarget(originalEnPassant);
-                }
-                else {
-                    board.resetEnPassantTarget();
-                }
-
-                if (!isInCheck) {
-
-                    // If castling:
-                    int diff = move - location;
-                    if (Math.abs(diff) == 2 && Math.abs(piece) == WHITE_KING) {
-
-                        //region Handle no castling through check
-                        // Find square between pre-castled and post-castled king square (where rook will be), calling it intermediateSquare
-                        int direction = (diff > 0) ? 1 : -1;
-                        byte intermediateSquare = (byte)(location + direction);
-
-                        // Simulate moving the king to the intermediate square
-                        Board simulatedCastlingBoard = new Board(board);
-                        simulateMove(simulatedCastlingBoard, location, intermediateSquare);
-
-                        // If the king would be in check on the intermediate square, discard this castling move.
-                        if (isKingInCheck(simulatedCastlingBoard, piece > 0)) {
-                            continue;
-                        }
-                        //endregion
-
-                        //region Handle no castling while in check
-                        if (isKingInCheck(board, piece > 0)) {
-                            continue;
-                        }
-                        //endregion
-                    }
-
-                    // Add it to validMoves if not castling or passes castling check
-                    validMoves.add(move);
-                }
+            // Restore enPassantTarget after simulation
+            if (originalEnPassant != null) {
+                setEnPassantTarget(originalEnPassant);
             }
-        } else {
-            validMoves.addAll(rawMoves);
+            else {
+                resetEnPassantTarget();
+            }
+
+            if (!isInCheck) {
+
+                // If castling:
+                int diff = to - from;
+                if (Math.abs(diff) == 2 && Math.abs(piece) == WHITE_KING) {
+
+                    //region Handle no castling through check
+                    // Find square between pre-castled and post-castled king square (where rook will be), calling it intermediateSquare
+                    int direction = (diff > 0) ? 1 : -1;
+                    byte intermediateSquare = (byte)(from + direction);
+
+                    // Simulate moving the king to the intermediate square
+                    Board simulatedCastlingBoard = new Board(this);
+                    simulateMove(simulatedCastlingBoard, from, intermediateSquare);
+
+                    // If the king would be in check on the intermediate square, discard this castling move.
+                    if (isKingInCheck(simulatedCastlingBoard, piece > 0)) {
+                        continue;
+                    }
+                    //endregion
+
+                    //region Handle no castling while in check
+                    if (isKingInCheck(board, piece > 0)) {
+                        continue;
+                    }
+                    //endregion
+                }
+
+                // Add it to validMoves if not castling or passes castling check
+                validMoves.add(to);
+            }
         }
+
 
         return validMoves;
     }
 
     private static void simulateMove(Board on, byte from, byte to) {
         //region Handle promotions
-        if (on.squares[from].piece == WHITE_PAWN && to < 8) {
+        boolean isWhitePromotion = on.squares[from].piece == WHITE_PAWN && to < 8;
+        boolean isBlackPromotion = on.squares[from].piece == BLACK_PAWN && to >= 56;
+
+        if (isWhitePromotion || isBlackPromotion) {
             on.squares[to].piece = on.chosenPieceToPromoteTo;
-//            System.out.println("New piece: " + board[to].piece);
         }
-        else if (on.squares[from].piece == BLACK_PAWN && to >= 56) {
-            on.squares[to].piece = on.chosenPieceToPromoteTo;
-//            System.out.println("New piece: " + board[to].piece);
-        }
+
         //endregion
 
         //region Handle normal movement (piece deleted from old square and placed on new one)
@@ -1062,6 +1066,7 @@ public class Board {
 
         on.isWhitesMove = !on.isWhitesMove;
     }
+
     //endregion
 
     //region Game State Management
@@ -1128,24 +1133,25 @@ public class Board {
     //region Move Validation
     public static boolean isKingInCheck(Board board, boolean isWhite) {
         byte king = (isWhite ? WHITE_KING : BLACK_KING);
-        Square kingSquare = null;
+        int kingPos = -1;
 
         // Find king position
-        for (Square s : board.squares) {
-            if (s.piece == king) {
-                kingSquare = s;
+        for (int i = 0; i < 64; i++) {
+            if (board.squares[i].piece == king) {
+                kingPos = i;
                 break;
             }
         }
-        if (kingSquare == null) return false;
 
-        // Check all opposing pieces
-        for (Square s : board.squares) {
-            if (s.piece * king < 0) { // Enemy piece
-                ArrayList<Byte> moves = accessibleSquaresOf(s, board, false);
-                if (moves.contains(kingSquare.index)) {
-                    return true;
-                }
+        // Check all enemy pieces
+        for (int i = 0; i < 64; i++) {
+            Square s = board.squares[i];
+            if (s.piece == EMPTY) continue;
+            if ((s.piece > 0) == isWhite) continue;
+
+            ArrayList<Byte> moves = board.getRawMoves(s);
+            if (moves.contains((byte) kingPos)) {
+                return true;
             }
         }
         return false;
@@ -1205,7 +1211,7 @@ public class Board {
             if (isPiecesTurnToMove) {
 
                 // And if it can move somewhere
-                if (!accessibleSquaresOf(s, board, true).isEmpty()) {
+                if (!board.accessibleSquaresOf(s).isEmpty()) {
 
                     return true;
                 }
@@ -1225,21 +1231,24 @@ public class Board {
             if (from.piece <= 0 == isWhitesMove) {
                 continue;
             }
+
             // Loop over every square we can move to, adding a move to there to the possibilities
-            ArrayList<Byte> accessibleSquares = accessibleSquaresOf(from, this, true);
-            for (byte to : accessibleSquares) {
+            for (byte to : accessibleSquaresOf(from)) {
 
                 // If move is a promotion, include all 4 variants
-                if (to / 8 == 0 && Math.abs(from.piece) == WHITE_PAWN) {
+                boolean isWhitePromotion = from.piece == WHITE_PAWN && to < 8;
+                boolean isBlackPromotion = from.piece == BLACK_PAWN && to >= 56;
+                if (isWhitePromotion || isBlackPromotion) {
+
                     char[] promotionOptions = isWhitesMove ? new char[]{'Q', 'N', 'R', 'B'} : new char[]{'q', 'n', 'r', 'b'};
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[0]));
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[1]));
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[2]));
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[3]));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[0], board));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[1], board));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[2], board));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[3], board));
                 }
 
                 else {
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName()));
+                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName(), board));
                 }
             }
 
@@ -1247,7 +1256,6 @@ public class Board {
         return possibleMoves;
     }
 
-    // In Board.java
     public Board getBoardIfMoveHappened(Move m) {
         Board possible = new Board(this);
         // Check if move is a promotion and extract the piece

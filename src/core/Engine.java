@@ -10,7 +10,7 @@ public abstract class Engine {
     boolean isPlaying = false;
     boolean isWhite = false;
     Board board = Main.board;
-    HashMap<String, String[]> storedEvalsAndBestMoves = new HashMap<>(); // Maps FEN to evaluations including eval bar and best move in string form // TODO is this really necessary / useful?
+    HashMap<String, String[]> storedEvalsAndBestMoves = new HashMap<>(); // Maps FEN to evaluations including eval bar and best move in string form
     boolean isAwaitingResponse = true;
 
     void tryPlay(int depth) {
@@ -50,7 +50,7 @@ public abstract class Engine {
             long totalTime = System.currentTimeMillis() - startTime;
             if (bestMove != null) {
                 System.out.println("Made move after " + totalTime + " milliseconds");
-                Move best = new Move(bestMove);
+                Move best = new Move(bestMove, board);
                 board.attemptMove(best.square1, best.square2);
             } else {
                 System.out.println("Failed to get best move after " + totalTime + " milliseconds");

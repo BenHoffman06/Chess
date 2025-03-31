@@ -27,8 +27,20 @@ public class Move {
     public Move(String moveNotation) {
         String firstSquare = moveNotation.substring(0,2);
         String secondSquare = moveNotation.substring(2, 4);
-        this.square1 = Square.convertStringToSquare(firstSquare);
-        this.square2 = Square.convertStringToSquare(secondSquare);
+        this.square1 = Main.board.convertStringToSquare(firstSquare);
+        this.square2 = Main.board.convertStringToSquare(secondSquare);
+        notation = firstSquare + secondSquare;
+        if (moveNotation.length() == 5) {
+            promotedTo = moveNotation.charAt(4);
+            notation += promotedTo;
+        }
+    }
+
+    public Move(String moveNotation, Board board) {
+        String firstSquare = moveNotation.substring(0,2);
+        String secondSquare = moveNotation.substring(2, 4);
+        this.square1 = board.convertStringToSquare(firstSquare);
+        this.square2 = board.convertStringToSquare(secondSquare);
         notation = firstSquare + secondSquare;
         if (moveNotation.length() == 5) {
             promotedTo = moveNotation.charAt(4);
