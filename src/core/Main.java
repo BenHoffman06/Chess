@@ -75,21 +75,28 @@ public class Main {
 
     public static void main(String[] args) {
         String MIDGAME_TESTING_FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
-        String EN_PASSANT_TESTING_FEN = "k1K5/1p1p1p1p/8/P1P1P1P1/1p1p1p1p/8/P1P1P1P1/8 w - - 0 1";
+        String EN_PASSANT_TESTING_FEN = "k1K5/1p1p1p2/8/2P1P1P1/1pPp1p2/8/4P1P1/8 b - c3 0 1";
+        String EN_PASSANT_TESTING_FEN_2 = "k1K5/1p3p2/8/2PpP1P1/1pPp1p2/8/4P1P1/8 w - d6 0 1";
+        String EN_PASSANT_TESTING_FEN_3 = "k1K5/1p1p1p2/8/2P3P1/1pPp1p2/8/4P1P1/8 b - c3 0 1";
+
         String PROMOTION_TESTING_FEN = "8/KPPP1PP1/8/k7/8/8/1ppp1pp1/8 w - - 0 1";
+        String PROMOTION_TESTING_FEN_2 = "K7/6P1/8/k7/8/8/1p6/8 b - - 0 1";
         String KNIGHT_CHECKMATE_TESTING_FEN = "1nnn4/2nnn3/2knnn2/8/nnnnnnnn/n3nnnn/8/2K5 b - - 0 1";
         String ROOK_BISHOP_CHECKMATE_TESTING_FEN = "bbbbbb1b/6b1/bb1bbbbb/4bbbb/bkbbbb1b/rpppprrr/8/2K5 b - - 0 1";
         String KING_AND_PAWN_MIRRORED_ENDGAME_TESTING_FEN = "1k6/1p6/8/8/8/8/1PK5/8 b - - 0 1";
-        String selectedFEN = MIDGAME_TESTING_FEN;
+
+        String selectedFEN = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
 
         UI.mainPanel = UI.handleGUI();
-        runPerft(3, selectedFEN);
+
+        runPerft(5, selectedFEN);
+
 
 
 //        // Default piece setup
 //        board.reset();
 //
-//        board.setFromFEN("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+//        board.setFromFEN(selectedFEN);
 //        currentEngine = new MyEngine();
 
 //        long start = System.currentTimeMillis();
@@ -107,25 +114,24 @@ public class Main {
      * Using testing discussed here: <a href="https://www.chessprogramming.org/Perft_Results#:~:text=81076-,Position%205,-This%20position%20was">...</a>
      */
     public static void runPerft(int depth, String selectedFEN) {
+        // Init
         currentEngine = new MyEngine();
+        board.setFromFEN(selectedFEN);
+        System.out.println(board.getCurrentFEN());
+        repaint();
 
-        String inputFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        // Get and store stockfish perft
         HashMap<String, Long> stockfishPerftReturn = StockfishPerftParser.get("C:/Users/Benem/Downloads/stockfish/stockfish-windows-x86-64-avx2.exe", selectedFEN, depth);
 
-
-
-        board.setFromFEN(selectedFEN);
-
+        // Start time logging
         long time = 0;
-
-        System.out.println("Starting perft.");
-
-
         long start = System.currentTimeMillis();
+        System.out.println("Starting perft.");
         System.out.print("Depth: " + depth);
 
         currentEngine.perftDivide(board, depth, stockfishPerftReturn);
 
+        // Finish time logging
         long end = System.currentTimeMillis();
         time = (end - start);
         System.out.println("Time taken: " + time + "ms");

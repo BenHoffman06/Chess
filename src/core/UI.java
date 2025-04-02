@@ -11,10 +11,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -339,6 +336,8 @@ public class UI {
                 tryDrawingDraggingPieces(g, mainPanel);
 
                 tryDrawingAccessibleSquares(g, mainPanel);
+
+                drawSquareNames(g);
             }
         };
 
@@ -473,12 +472,13 @@ public class UI {
     public static void drawEvalBar(Graphics g, JPanel panel, Rectangle boardBounds) {
         double stored = Main.board.currentEval;
         double eval = stored;
+        if (Main.currentEngine == null) return;
         if (!Main.currentEngine.isAwaitingResponse) {
             eval = Main.currentEngine.getEval(12);
         }
 //                eval *= -1;
         double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
-        int divider = (int) (boardBounds.y + boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
+        int divider = (int) (boardBounds.y + (double) boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
         Rectangle evalBar = new Rectangle(boardBounds.x - 30 * boardBounds.height / 256, boardBounds.y, boardBounds.height / 16, boardBounds.height);
 
         // Draw white part
@@ -601,6 +601,38 @@ public class UI {
 
             }
         }
+    }
+
+    public static void drawSquareNames(Graphics g) {
+        // Calculate labeled squares
+        Square[] squares = Main.board.squares;
+
+        ArrayList<Square> squaresWithFileLabels = new ArrayList<>();
+        ArrayList<Square> squaresWithRankLabels = new ArrayList<>();
+        String[] fileLabels = {"a", "b", "c", "d", "e", "f", "g", "h"};
+
+        int fontSize = (int) (getBoardBounds().height * 0.0698138297873 * 0.4);
+        Font current = g.getFont();
+        g.setFont(new Font("Arial", Font.BOLD, fontSize));
+        for (int i = 0; i < 8; i++) {
+
+            String fileLabel = fileLabels[i];
+            String rankLabel = String.valueOf(8 - i);
+
+            Square fileLabelSquare = squares[56 + i];
+            Square rankLabelSquare = squares[8 * (i + 1) - 1];
+
+            Rectangle fileLabelSquareBounds = getSquareBounds(fileLabelSquare);
+            Rectangle rankLabelSquareBounds = getSquareBounds(rankLabelSquare);
+
+            int offset = (int) (fileLabelSquareBounds.width * .75);
+
+            g.setColor(fileLabelSquare.getCurrentComplementaryColor());
+            g.drawString(fileLabel, (int) (fileLabelSquareBounds.x + (0.13 * offset)), (int) (fileLabelSquareBounds.y + (offset * 1.25)));
+            g.setColor(rankLabelSquare.getCurrentComplementaryColor());
+            g.drawString(rankLabel, (int) (rankLabelSquareBounds.x + (offset * 1.1)), (int) (rankLabelSquareBounds.y + (0.4 * offset)));
+        }
+        g.setFont(current);
     }
 
     private static BufferedImage flipImageVertically(BufferedImage img, Graphics2D g2d) {

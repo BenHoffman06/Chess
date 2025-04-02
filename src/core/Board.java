@@ -1,10 +1,5 @@
 package core;
 
-import com.sun.source.tree.BinaryTree;
-import com.sun.source.tree.Tree;
-
-import javax.swing.*;
-import java.awt.*;
 import java.util.*;
 
 import static core.Main.*;
@@ -110,7 +105,7 @@ public class Board {
         // Copy other fields
         this.isWhitesMove = original.isWhitesMove;
         this.enPassantTarget = original.enPassantTarget != null ?
-                new Square(original.enPassantTarget) : null;
+                this.squares[original.enPassantTarget.index] : null;
         this.capturedWhitePieces = new ArrayList<>(original.capturedWhitePieces);
         this.capturedBlackPieces = new ArrayList<>(original.capturedBlackPieces);
         this.chosenPieceToPromoteTo = original.chosenPieceToPromoteTo;
@@ -129,7 +124,8 @@ public class Board {
 
         // Clear
         for (Square s : squares) {
-            s.piece = EMPTY;
+//            s.piece = EMPTY;
+            s.removePiece();
         }
 
         // Place pieces
@@ -289,7 +285,6 @@ public class Board {
         //endregion
 
         //region Fill in castling rights part of FEN
-        stringBuilder.append(' ');
         Square blackKingSquare = squares[4];
         Square whiteKingSquare = squares[60];
 
@@ -304,30 +299,63 @@ public class Board {
         if (blackCanCastleQueenside) { stringBuilder.append("q"); }
 
         if (!whiteCanCastleKingside && !whiteCanCastleQueenside && !blackCanCastleKingside && !blackCanCastleQueenside) {
-            stringBuilder.append("- -");
-        }
-        else {
             stringBuilder.append(" -");
         }
+//        else {
+//            stringBuilder.append(" -");
+//        }
+
         //endregion
 
         //region Add en passant targets only if an en passant could be performed
         Square ePTarget = getEnPassantTarget();
-
         if (ePTarget != null) {
-            Square left = squares[ePTarget.index - 1];
-            Square right = squares[ePTarget.index + 1];
-
-            byte enemyPawn = isWhitesMove ? WHITE_PAWN : BLACK_PAWN;
-
-            boolean enPassPossible = left.piece == enemyPawn || right.piece == enemyPawn;
-
-            if (enPassPossible) {
-                stringBuilder.append(' ');
-                stringBuilder.append(ePTarget.getSquareName());
+            int destinationIndex;
+            // Determine destination square based on whose turn it is
+            if (isWhitesMove) {
+                // enPassantTarget was set by a black pawn's move, destination is ePTarget.index + 8
+                destinationIndex = ePTarget.index + 8;
+            } else {
+                // enPassantTarget was set by a white pawn's move, destination is ePTarget.index - 8
+                destinationIndex = ePTarget.index - 8;
             }
+
+            // Check if destination is within bounds
+            if (destinationIndex < 0 || destinationIndex >= 64) {
+                stringBuilder.append(" -");
+            } else {
+                int destFile = destinationIndex % 8;
+                int leftDest = destinationIndex - 1;
+                int rightDest = destinationIndex + 1;
+                byte expectedPawn = isWhitesMove ? WHITE_PAWN : BLACK_PAWN;
+                boolean enPassPossible = false;
+
+                // Check left adjacent square if valid
+                if (destFile > 0) {
+                    Square leftSquare = squares[leftDest];
+                    if (leftSquare.piece == expectedPawn) {
+                        enPassPossible = true;
+                    }
+                }
+
+                // Check right adjacent square if valid
+                if (destFile < 7) {
+                    Square rightSquare = squares[rightDest];
+                    if (rightSquare.piece == expectedPawn) {
+                        enPassPossible = true;
+                    }
+                }
+
+                if (enPassPossible) {
+                    stringBuilder.append(' ').append(ePTarget.getSquareName());
+                } else {
+                    stringBuilder.append(" -");
+                }
+            }
+        } else {
+            stringBuilder.append(" -");
         }
-        //endregion
+//endregion
 
         //region Add half moves
         stringBuilder.append(" ").append(halfMoveCounter);
@@ -531,6 +559,10 @@ public class Board {
         //region Handle board and move notation
         byte from = square1.index;
         byte to = square2.index;
+
+        square1.hasNotChanged = false;
+        square2.hasNotChanged = false;
+
         String moveNotation = null;
 
         // Update variables
@@ -556,49 +588,50 @@ public class Board {
         boolean kingMove = Math.abs(square1.piece) == WHITE_KING;
         int distance = Math.abs(square1.index % 8 - square2.index % 8);
 
-        // Check king moved and it wasn't just his normal movement
-        if (kingMove && distance > 1) {
+        boolean isKingsideCastle = (kingMove && distance > 1) && (square2.index > square1.index);
+        boolean isQueensideCastle = (kingMove && distance > 1) && (square2.index < square1.index);
 
-            // If doing kingside castle
-            if (square2.index > square1.index) {
+        // If doing kingside castle
+        if (isKingsideCastle) {
 
-                // bring rookSquare other side
-                Square rookSquare = board.squares[square2.index + 1];
-                Square otherSide = board.squares[square2.index - 1];
-                otherSide.piece = rookSquare.piece;
-                rookSquare.piece = EMPTY;
+            // bring rookSquare other side
+            Square rookSquare = board.squares[square2.index + 1];
+            Square otherSide = board.squares[square2.index - 1];
+            otherSide.piece = rookSquare.piece;
+//            rookSquare.piece = EMPTY;
+            rookSquare.removePiece();
 
-                // Move king
-                square2.piece = square1.piece;
-                square1.piece = EMPTY;
+            // Move king
+            square2.piece = square1.piece;
+//            square1.piece = EMPTY;
+            square1.removePiece();
 
-                // Update
-                System.out.println(rookSquare);
-                repaint();
+            // Update
+            System.out.println(rookSquare);
+            repaint();
 
-                // Return notation
-                moveNotation = "O-O";
-            }
+            // Set kingside castling notation
+            moveNotation = "O-O";
+        }
 
-            // If doing queenside castle
-            else {
+        // If doing queenside castle
+        if (isQueensideCastle) {
 
-                // bring rook other side
-                Square rookSquare = board.squares[square2.index - 2];
-                Square otherSide = board.squares[square2.index + 1];
-                otherSide.piece = rookSquare.piece;
-                rookSquare.piece = EMPTY;
+            // bring rook other side
+            Square rookSquare = board.squares[square2.index - 2];
+            Square otherSide = board.squares[square2.index + 1];
+            otherSide.piece = rookSquare.piece;
+            rookSquare.piece = EMPTY;
 
-                // Move kind
-                square2.piece = square1.piece;
-                square1.piece = EMPTY;
+            // Move kind
+            square2.piece = square1.piece;
+            square1.piece = EMPTY;
 
-                // Update
-                repaint();
+            // Update
+            repaint();
 
-                // Return notation
-                moveNotation = "O-O-O";
-            }
+            // Set queenside castling notation
+            moveNotation = "O-O-O";
         }
 
         //endregion
@@ -640,7 +673,7 @@ public class Board {
         //endregion
 
         // If a non-promotion and non-castling move, update new square
-        if (!isBlackPromotion && !isWhitePromotion) {
+        if (!isBlackPromotion && !isWhitePromotion && !isKingsideCastle && !isQueensideCastle) {
             board.squares[to].piece = board.squares[from].piece;
         }
 
@@ -664,7 +697,7 @@ public class Board {
         //region Handle game
 
         // Add it to move list and position to threefold repetition storage
-        Move m = new Move(moveNotation, square1, square2);
+        Move m = new Move(this, square1, square2);
         moves.add(m);
         threefoldStates.add(getBoardStateForThreefoldChecking());
         updateHalfMoves(m);
@@ -673,8 +706,8 @@ public class Board {
         System.out.println(m.notation);
 
         // Get Stockfish's response if possible
-        Main.currentEngine.tryPlay(12);
-
+//        Main.currentEngine.tryPlay(12);
+        runPerft(2, getCurrentFEN());
         //endregion
     }
 
@@ -691,7 +724,7 @@ public class Board {
     //endregion
 
     //region Piece Movement Logic // TODO change this to use Move()
-    private ArrayList<Byte> getRawMoves(Square square) {
+    public ArrayList<Byte> getRawMoves(Square square) {
         ArrayList<Byte> byteMoves = new ArrayList<>();
         byte piece = square.piece;
         byte location = square.index;
@@ -930,7 +963,7 @@ public class Board {
                 }
 
                 // If the king hasn't moved
-                if (square.hasNotChanged() && squaresLeft == 4) {
+                if (square.hasNotChanged && squaresLeft == 4) {
 
                     // Kingside castling:
 
@@ -940,7 +973,7 @@ public class Board {
                     if (ks1.isEmpty() && ks2.isEmpty()) {
 
                         // And if rook has not moved
-                        if (squares[location + 3].hasNotChanged()) {
+                        if (squares[location + 3].hasNotChanged) {
 
                             // Add to moves
                             byteMoves.add((byte) (location + 2));
@@ -956,7 +989,7 @@ public class Board {
                     if (qs1.isEmpty() && qs2.isEmpty() && qs3.isEmpty()) {
 
                         // And rook has not moved
-                        if (squares[location - 4].hasNotChanged())  {
+                        if (squares[location - 4].hasNotChanged)  {
 
                             // Add to moves
                             byteMoves.add((byte) (location - 2));
@@ -975,92 +1008,119 @@ public class Board {
         byte piece = square.piece;
         byte from = square.index;
 
-        // Get all potential moves without considering checks
         ArrayList<Byte> rawMoves = getRawMoves(square);
 
-        // Verify each move doesn't leave king in check
+        rawMovesLoop:
         for (Byte to : rawMoves) {
-            // Save the current enPassantTarget
-            Square originalEnPassant = getEnPassantTarget();
-
+            // Create simulated board for this move
             Board simulatedBoard = new Board(this);
-            simulateMove(simulatedBoard, from, to);
-            boolean isInCheck = isKingInCheck(simulatedBoard, piece > 0);
+            Square simulatedFrom = simulatedBoard.squares[from];
+            Square simulatedTo = simulatedBoard.squares[to];
 
-            // Restore enPassantTarget after simulation
-            if (originalEnPassant != null) {
-                setEnPassantTarget(originalEnPassant);
-            }
-            else {
-                resetEnPassantTarget();
-            }
+            // First, throw out moves that leave king in check afterwards
+            simulateMove(simulatedBoard, new Move(simulatedBoard, simulatedFrom, simulatedTo));
+            boolean isInCheck = isKingInCheck(simulatedBoard, isWhitesMove);
+//
+//            if (to == 6 && isInCheck) {
+//                System.out.println(simulatedBoard.getCurrentFEN());
+//                int a = 0;
+//            }
+            if (isInCheck) continue;
 
-            if (!isInCheck) {
+            // Additional castling checks:
+            int diff = to - from;
+            boolean isCastling = Math.abs(diff) == 2 && Math.abs(piece) == WHITE_KING;
 
-                // If castling:
-                int diff = to - from;
-                if (Math.abs(diff) == 2 && Math.abs(piece) == WHITE_KING) {
-
-                    //region Handle no castling through check
-                    // Find square between pre-castled and post-castled king square (where rook will be), calling it intermediateSquare
-                    int direction = (diff > 0) ? 1 : -1;
-                    byte intermediateSquare = (byte)(from + direction);
-
-                    // Simulate moving the king to the intermediate square
-                    Board simulatedCastlingBoard = new Board(this);
-                    simulateMove(simulatedCastlingBoard, from, intermediateSquare);
-
-                    // If the king would be in check on the intermediate square, discard this castling move.
-                    if (isKingInCheck(simulatedCastlingBoard, piece > 0)) {
-                        continue;
-                    }
-                    //endregion
-
-                    //region Handle no castling while in check
-                    if (isKingInCheck(board, piece > 0)) {
-                        continue;
-                    }
-                    //endregion
+            if (isCastling) {
+                // 1. Check initial king position
+                if (isKingInCheck(this, isWhitesMove)) {
+                    continue;
                 }
 
-                // Add it to validMoves if not castling or passes castling check
-                validMoves.add(to);
+                //region 2. Check intermediate squares
+                int direction = diff > 0 ? 1 : -1;
+                int[] intermediates = direction == 1 ?
+                        new int[]{from + 1} :           // Kingside: 1 square
+                        new int[]{from - 1, from - 2};  // Queenside: 2 squares
+
+                for (int i : intermediates) {
+                    Board tempBoard = new Board(this);
+                    Square tempFrom = tempBoard.squares[from];
+                    Square tempTo = tempBoard.squares[i];
+                    simulateMove(tempBoard, new Move(tempBoard, tempFrom, tempTo));
+
+                    if (isKingInCheck(tempBoard, isWhitesMove)) {
+                        continue rawMovesLoop;
+                    }
+                }
+                //endregion
             }
+
+            validMoves.add(to);
         }
-
-
         return validMoves;
     }
 
-    private static void simulateMove(Board on, byte from, byte to) {
-        //region Handle promotions
-        boolean isWhitePromotion = on.squares[from].piece == WHITE_PAWN && to < 8;
-        boolean isBlackPromotion = on.squares[from].piece == BLACK_PAWN && to >= 56;
+    // It's a problem with board not getting deep copied when this is called
+    public static void simulateMove(Board on, Move move) {
+        byte piece = move.from.piece;
+        move.from.hasNotChanged = false;
+        move.to.hasNotChanged = false;
 
-        if (isWhitePromotion || isBlackPromotion) {
-            on.squares[to].piece = on.chosenPieceToPromoteTo;
+        // Handle promotion piece update
+        if (move.isWhitePromotion() || move.isBlackPromotion()) {
+            // TODO make this cleaner
+            move.to.piece = (move.isWhitePromotion()) ? (byte) Math.abs(on.chosenPieceToPromoteTo) : (byte) (-1 * Math.abs(on.chosenPieceToPromoteTo));
+        } else {
+            // Handle all other piece updates
+            move.to.piece = move.from.piece;
         }
+        move.from.removePiece();
 
+        //region Also move rook when castling
+        boolean isCastling = Math.abs(piece) == WHITE_KING && Math.abs(move.from.index - move.to.index) == 2;
+        if (isCastling) {
+            int direction = (move.to.index > move.from.index) ? 1 : -1; // Kingside: +2, Queenside: -2
+            int rookFromIndex, rookToIndex;
+
+            if (direction == 1) { // Kingside
+                rookFromIndex = move.to.index + 1;
+                rookToIndex = move.to.index - 1;
+            } else { // Queenside
+                rookFromIndex = move.to.index - 2;
+                rookToIndex = move.to.index + 1;
+            }
+
+            // Move rook
+            Square rookFrom = on.squares[rookFromIndex];
+            Square rookTo = on.squares[rookToIndex];
+            rookTo.piece = rookFrom.piece;
+            rookFrom.removePiece();
+        }
         //endregion
 
-        //region Handle normal movement (piece deleted from old square and placed on new one)
-        else {
-            on.squares[to].piece = on.squares[from].piece;
+        //region En Passant logic
+
+        // Update squares after en passant performed
+        boolean enPassantHappened = (Math.abs(piece) == WHITE_PAWN && move.to.equals(on.getEnPassantTarget()));
+        if (enPassantHappened) {
+
+            // Remove captured pawn
+            int direction = Integer.signum(piece); // 1 for white, -1 for black
+            int capturedIndex = move.to.index + (direction * 8);
+            Square capturedSquare = on.squares[capturedIndex];
+            capturedSquare.removePiece();
         }
-        on.squares[from].piece = EMPTY;
-        //endregion
 
-        //region Update en passant targets
+        // Update en passant targets
+        boolean pawnJustMoved = Math.abs(move.to.piece) == WHITE_PAWN;
+        boolean moved16Indices = Math.abs(move.from.index - move.to.index) == 16;
 
-        boolean pawnJustMoved = Math.abs(on.squares[to].piece) == WHITE_PAWN;
-        boolean moved16Indices = Math.abs(from - to) == 16;
-
-        Square newEnPassantTarget = (pawnJustMoved && moved16Indices) ? on.squares[(from + to) / 2] : null;
-        if (newEnPassantTarget != null) {
-            on.setEnPassantTarget(newEnPassantTarget);
-        }
-        else {
-            on.resetEnPassantTarget();
+        if (pawnJustMoved && moved16Indices) {
+            // Update en passant target
+            on.enPassantTarget = on.squares[(move.from.index + move.to.index) / 2];
+        } else {
+            on.enPassantTarget = null;
         }
         //endregion
 
@@ -1170,13 +1230,13 @@ public class Board {
 
         // Return false early if king square has changed
         for (Move m : moves) {
-            if (m.square1 == kingSquare) {
+            if (m.from == kingSquare) {
                 return false;
             }
         }
 
         // If rook has not moved
-        if (squares[location + 3].hasNotChanged()) {
+        if (squares[location + 3].hasNotChanged) {
 
             // And it is asking about kings
             if (isKingside) {
@@ -1186,7 +1246,7 @@ public class Board {
         }
 
         // If rook has not moved
-        if (squares[location - 4].hasNotChanged())  {
+        if (squares[location - 4].hasNotChanged)  {
 
             // And if it is asking about queenside
             if (!isKingside) {
@@ -1233,22 +1293,22 @@ public class Board {
             }
 
             // Loop over every square we can move to, adding a move to there to the possibilities
-            for (byte to : accessibleSquaresOf(from)) {
+            ArrayList<Byte> accessibleDestinations = accessibleSquaresOf(from);
+            for (byte to : accessibleDestinations) {
 
                 // If move is a promotion, include all 4 variants
                 boolean isWhitePromotion = from.piece == WHITE_PAWN && to < 8;
                 boolean isBlackPromotion = from.piece == BLACK_PAWN && to >= 56;
                 if (isWhitePromotion || isBlackPromotion) {
-
                     char[] promotionOptions = isWhitesMove ? new char[]{'Q', 'N', 'R', 'B'} : new char[]{'q', 'n', 'r', 'b'};
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[0], board));
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[1], board));
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[2], board));
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[3], board));
+                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[0]));
+                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[1]));
+                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[2]));
+                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[3]));
                 }
 
                 else {
-                    possibleMoves.add(new Move(from.getSquareName() + board.squares[to].getSquareName(), board));
+                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName()));
                 }
             }
 
@@ -1256,10 +1316,17 @@ public class Board {
         return possibleMoves;
     }
 
+    // In Board.java
     public Board getBoardIfMoveHappened(Move m) {
         Board possible = new Board(this);
-        // Check if move is a promotion and extract the piece
-        if (m.notation.length() == 5) { // e.g., "a7a8q"
+
+        // Get the from/to squares from the COPIED BOARD (not original)
+        Square newFrom = possible.squares[m.from.index];
+        Square newTo = possible.squares[m.to.index];
+        Move newMove = new Move(possible, newFrom, newTo);
+
+        // Handle promotions
+        if (m.notation.length() == 5) {
             char promoChar = m.notation.charAt(4);
             possible.chosenPieceToPromoteTo = switch (promoChar) {
                 case 'Q' -> WHITE_QUEEN;
@@ -1270,10 +1337,11 @@ public class Board {
                 case 'r' -> BLACK_ROOK;
                 case 'b' -> BLACK_BISHOP;
                 case 'n' -> BLACK_KNIGHT;
-                default -> EMPTY;
+                default -> throw new RuntimeException("Incorrect promotion");
             };
         }
-        simulateMove(possible, m.square1.index, m.square2.index);
+
+        simulateMove(possible, newMove);
         return possible;
     }
     //endregion

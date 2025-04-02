@@ -1,17 +1,11 @@
 package core;
 
-import javax.swing.*;
 import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.util.HashMap;
-import java.util.Map;
-
-import static core.UI.CHECKMATE;
-import static core.UI.pieceImages;
 
 public class Square {
     public byte piece;
     public byte index;
+    public boolean hasNotChanged;
 
     private static String[] squareName = {
             "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
@@ -27,15 +21,30 @@ public class Square {
     public Square(byte index) {
         this.index = index;
         this.piece = Main.EMPTY;
+        this.hasNotChanged = true;
     }
 
     public Square(Square s) {
         this.piece = s.piece;
         this.index = s.index;
+        this.hasNotChanged = s.hasNotChanged;
     }
 
     public void setPiece(byte piece) {
         this.piece = piece;
+    }
+
+    public void removePiece() {
+        setPiece(Main.EMPTY);
+    }
+
+    public boolean isIn(Board b) {
+        for (Square s : b.squares) {
+            if (this == s) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String toString() {
@@ -75,6 +84,11 @@ public class Square {
         if (isSelected && !isWhiteSquare) return UI.SELECTED_BLACK;
 
         return Color.GREEN;
+    }
+
+    public Color getCurrentComplementaryColor() {
+        Color current = getCurrentColor();
+        return (isWhite()) ? UI.BLACK : UI.WHITE;
     }
 
     public char getPieceChar() {
@@ -147,7 +161,7 @@ public class Square {
     public boolean hasNotChanged() {
         for (Move m : Main.moves) {
             // If square has been moved to or from, it has changed
-            if (index == m.square1.index || index == m.square2.index) {
+            if (index == m.from.index || index == m.to.index) {
                 return false;
             }
         }

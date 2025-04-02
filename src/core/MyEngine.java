@@ -2,6 +2,10 @@ package core;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Objects;
+
+import static core.Board.isKingInCheck;
+import static core.Board.simulateMove;
 
 public class MyEngine extends Engine {
     private int leafNodesProcessed = 0;
@@ -95,30 +99,58 @@ public class MyEngine extends Engine {
 
     // Perft with divide (prints move counts)
     public void perftDivide(Board board, int depth, HashMap<String, Long> stockfishPerft) {
-        long total = 0;
-        ArrayList<Move> moves = board.getPossibleMoves();
+        String RESET = "\u001B[0m";
+        String RED = "\u001B[31m";
+        String GREEN = "\u001B[32m";
 
+        long total = 0;
+        long stockfishTotal = 0;
+        String currentWorstMove = board.getPossibleMoves().getFirst().notation;
+        int currentWorstMoveDifferenceCount = 0;
         System.out.println("Perft Divide (depth " + depth + "):");
-        for (Move move : moves) {
+
+        // For all possible moves:
+        for (Move move : board.getPossibleMoves()) {
+
+            // Perform perft
             Board newBoard = board.getBoardIfMoveHappened(move);
             long count = perft(newBoard, depth - 1);
 
-            total += count;
-
             // Stockfish count for comparison
             long stockfishCount = 0;
-            if (stockfishPerft.containsKey(move.square1.getSquareName() + move.square2.getSquareName())) {
-                stockfishCount = stockfishPerft.get(move.square1.getSquareName() + move.square2.getSquareName());
+
+            // Try to retrieve stockfish perft
+            String moveNotation = move.getNotation();
+            if (stockfishPerft.containsKey(moveNotation)) {
+                stockfishCount = stockfishPerft.get(moveNotation);
             }
             else {
-                System.out.println("Stockfish Keys: " + stockfishPerft.keySet());
-                System.out.println("Attempted key retrieval: " + move.square1.getSquareName() + move.square2.getSquareName());
+                throw new RuntimeException("Program bug is allowing an illegal move according to Stockfish: " + moveNotation + "\nFEN: " + board.getCurrentFEN());
             }
+
+            // Add individual counts to running totals
+            total += count;
+            stockfishTotal += stockfishCount;
+
+            // Print out difference
             double average = (double) (stockfishCount + count) / 2;
             double percent = (stockfishCount - count) / average;
-            System.out.println(move.notation + ": " + count +"\t\t\t\tDifference from Stockfish: " + (stockfishCount - count) + "\t(" + String.format("%.2f", percent) + "%)");
+            System.out.print(move.notation + ": " + count + "\t\t\t\tDifference from Stockfish: ");
+            if (count != stockfishCount) System.out.println(RED + (stockfishCount - count) + "\t(" + String.format("%.2f", percent) + "%)" + RESET);
+            else System.out.println(GREEN + (stockfishCount - count) + "\t(" + String.format("%.2f", percent) + "%)" + RESET);
+
+            if (moveNotation.contains("b1q")) {
+                printAllMovesFrom(newBoard);
+            }
+
+            // Keep track of move which is most different from stockfish
+            if (currentWorstMoveDifferenceCount < Math.abs((stockfishCount - count))) {
+                currentWorstMoveDifferenceCount = (int) Math.abs(stockfishCount - count);
+                currentWorstMove = move.notation;
+            }
         }
-        System.out.println("Total: " + total + "\n");
+        System.out.println("\nTotal: " + total + "\t\t\tDifference from Stockfish: " + (stockfishTotal - total) + "\t(" + String.format("%.2f", (double) (stockfishTotal - total) / ((stockfishTotal + total) / 2)) + "%)\n");
+        System.out.println("Move most different from stockfish: " + currentWorstMove +"\n\n");
     }
 
     private void perftHelper(Board board, int depth) {
@@ -132,5 +164,26 @@ public class MyEngine extends Engine {
             Board newBoard = board.getBoardIfMoveHappened(move);
             perftHelper(newBoard, depth - 1);
         }
+    }
+
+    private void printAllMovesFrom(Board b) {
+        System.out.println("\n\n");
+        System.out.println(b.getCurrentFEN());
+        for (Move m : b.getPossibleMoves()) {
+            System.out.println(m.getNotation());
+            System.out.println(b.accessibleSquaresOf(b.squares[14]));
+        }
+
+        Move m = b.getPossibleMoves().getFirst();
+        Board simulatedBoard = new Board(b);
+        Square simulatedFrom = simulatedBoard.squares[15];
+        Square simulatedTo = simulatedBoard.squares[7];
+
+        // First, throw out moves that leave king in check afterwards
+        simulateMove(simulatedBoard, new Move(simulatedBoard, simulatedFrom, simulatedTo));
+        boolean isInCheck = isKingInCheck(simulatedBoard, b.isWhitesMove);
+        System.out.println(isInCheck);
+
+        System.out.println("\n\n");
     }
 }

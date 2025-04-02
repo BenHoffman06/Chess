@@ -50,8 +50,8 @@ public abstract class Engine {
             long totalTime = System.currentTimeMillis() - startTime;
             if (bestMove != null) {
                 System.out.println("Made move after " + totalTime + " milliseconds");
-                Move best = new Move(bestMove, board);
-                board.attemptMove(best.square1, best.square2);
+                Move best = new Move(board, bestMove);
+                board.attemptMove(best.from, best.to);
             } else {
                 System.out.println("Failed to get best move after " + totalTime + " milliseconds");
             }
