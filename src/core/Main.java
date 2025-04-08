@@ -17,7 +17,7 @@ public class Main {
     public static ArrayList<String> threefoldStates = new ArrayList<>(); // Stores all moves made in the game
 
     // Accessible moves for a specific piece
-    public static ArrayList<Byte> accessibleMoves = new ArrayList<>(); // Stores accessible squares (their index) for a selected piece
+    public static ArrayList<Integer> accessibleMoves = new ArrayList<>(); // Stores accessible squares (their index) for a selected piece
 
 
     //region Piece Constants
@@ -67,13 +67,17 @@ public class Main {
         board.reset();
 
         if (currentEngine.isWhite) {
-            currentEngine.tryPlay(12);
+            currentEngine.tryPlay(3);
         }
 
         repaint();
     }
 
     public static void main(String[] args) {
+        // Set up UI
+        UI.mainPanel = UI.handleGUI();
+
+        // FEN
         String MIDGAME_TESTING_FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
         String EN_PASSANT_TESTING_FEN = "k1K5/1p1p1p2/8/2P1P1P1/1pPp1p2/8/4P1P1/8 b - c3 0 1";
         String EN_PASSANT_TESTING_FEN_2 = "k1K5/1p3p2/8/2PpP1P1/1pPp1p2/8/4P1P1/8 w - d6 0 1";
@@ -83,30 +87,28 @@ public class Main {
         String PROMOTION_TESTING_FEN_2 = "K7/6P1/8/k7/8/8/1p6/8 b - - 0 1";
         String KNIGHT_CHECKMATE_TESTING_FEN = "1nnn4/2nnn3/2knnn2/8/nnnnnnnn/n3nnnn/8/2K5 b - - 0 1";
         String ROOK_BISHOP_CHECKMATE_TESTING_FEN = "bbbbbb1b/6b1/bb1bbbbb/4bbbb/bkbbbb1b/rpppprrr/8/2K5 b - - 0 1";
-        String KING_AND_PAWN_MIRRORED_ENDGAME_TESTING_FEN = "1k6/1p6/8/8/8/8/1PK5/8 b - - 0 1";
+        String KING_AND_PAWN_MIRRORED_ENDGAME_TESTING_FEN = "1k6/2p5/8/8/8/8/2PK4/8 b - - 0 1";
+        String DEVELOPMENT_TESTING_FEN = "rnbqkbnr/pppppppp/8/8/2BPPB2/2N2N2/1PP2PPP/R2QR1K1 w Qkq - 0 1";
 
-        String selectedFEN = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
+        String selectedFEN = MIDGAME_TESTING_FEN;
+        board.setFromFEN(selectedFEN);
 
-        UI.mainPanel = UI.handleGUI();
+        // Set up engine
+        currentEngine = new MyEngine();
 
-        runPerft(5, selectedFEN);
+        // Set up engine parameters
+        ArrayList<String> engineArgs = new ArrayList<>();
+        engineArgs.add("print");
 
+        // Call and time engine's eval analysis of current position
+        long start = System.currentTimeMillis();
+//        currentEngine.calcEval(5, engineArgs);
+//        currentEngine.makeBestMove(2);
+        System.out.println("\nTime taken: " + (System.currentTimeMillis() - start) + "ms");
 
-
-//        // Default piece setup
-//        board.reset();
-//
-//        board.setFromFEN(selectedFEN);
-//        currentEngine = new MyEngine();
-
-//        long start = System.currentTimeMillis();
-//        currentEngine.calcEval(3);
-//        long end = System.currentTimeMillis();
-//        System.out.println((start - end) / 1000);
-//        currentEngine.isPlaying = true;
-//        currentEngine.isWhite = false;
-//        currentEngine.tryPlay(12);
-//        setBoardFromFEN("rnbqkbnr/ppppp1pp/8/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1");
+        // Set up engine to play as black
+        currentEngine.isPlaying = true;
+        currentEngine.isWhite = false;
 
     }
 

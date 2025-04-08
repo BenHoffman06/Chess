@@ -102,6 +102,7 @@ public class Board {
         for (byte i = 0; i < 64; i++) {
             this.squares[i] = new Square(original.squares[i]);
         }
+
         // Copy other fields
         this.isWhitesMove = original.isWhitesMove;
         this.enPassantTarget = original.enPassantTarget != null ?
@@ -110,6 +111,48 @@ public class Board {
         this.capturedBlackPieces = new ArrayList<>(original.capturedBlackPieces);
         this.chosenPieceToPromoteTo = original.chosenPieceToPromoteTo;
     }
+
+    public Board(Board original, byte from, byte to) {
+        byte movingPieceType = (byte) Math.abs(original.squares[from].piece);
+
+        // Shallow copy squares
+        System.arraycopy(original.squares, 0, this.squares, 0, 64);
+
+        // Deep copy from and to squares
+        this.squares[from] = new Square(original.squares[from]);
+        this.squares[to] = new Square(original.squares[from]);
+
+        //region Deep copy castling squares if necessary
+        boolean isCastling = movingPieceType == WHITE_KING && Math.abs(from - to) == 2;
+        if (isCastling) {
+            for (int i = -4; i <= 3; i++) {
+                this.squares[from + i] = new Square(original.squares[from + i]);
+            }
+        }
+        //endregion
+
+        //region Deep copy possible en passant locations if necessary
+        boolean isPawnCaptureFormation = (Math.abs(from - to) == 7 || Math.abs(from - to) == 9);
+        if (isPawnCaptureFormation && movingPieceType == WHITE_PAWN) {
+            // Deep copy 2 other squares in 2x2 area to also deep copy en passant squares
+            if (from - to == 7 || to - from == 9) {
+                this.squares[from + 1] = new Square(original.squares[from + 1]);
+            }
+            if (to - from == 7 || from - to == 9) {
+                this.squares[from - 1] = new Square(original.squares[from - 1]);
+            }
+        }
+        //endregion
+
+        // Copy game state
+        this.isWhitesMove = original.isWhitesMove;
+        this.enPassantTarget = original.enPassantTarget != null ?
+                new Square(original.enPassantTarget) : null;
+        this.capturedWhitePieces = new ArrayList<>(original.capturedWhitePieces);
+        this.capturedBlackPieces = new ArrayList<>(original.capturedBlackPieces);
+        this.chosenPieceToPromoteTo = original.chosenPieceToPromoteTo;
+    }
+
 
     public void reset() {
         setFromFEN(STARTING_FEN);
@@ -523,7 +566,7 @@ public class Board {
         // Reset accessible moves
         accessibleMoves.clear();
 
-        boolean canMakeMove = board.accessibleSquaresOf(square1).contains(square2.index);
+        boolean canMakeMove = board.accessibleSquaresOf(square1).contains((int) square2.index);
         if (canMakeMove) {
 
             //region Set up promotion prompt if promoting and prompt is not already up
@@ -531,7 +574,6 @@ public class Board {
             boolean isWhitePromotion = board.squares[from].piece == WHITE_PAWN && to < 8;
             boolean isBlackPromotion = board.squares[from].piece == BLACK_PAWN && to >= 56;
             if (!UI.isPromoting && (isWhitePromotion || isBlackPromotion)) {
-//                System.out.println("Promotion in tryMovePiece");
                 UI.isPromoting = true;
                 promotionSquare = board.squares[to];
                 // Store the from and to squares for the promotion move
@@ -546,8 +588,7 @@ public class Board {
             executeMove(square1, square2);
         }
         else {
-            UI.handleInvalidMoveTo(square2);
-//            System.out.println(accessibleMoves);
+            UI.handleInvalidMoveTo(new Move(Main.board, square1, square2));
         }
     }
 
@@ -556,6 +597,8 @@ public class Board {
      * returns chess notation for move
      */
     public void executeMove(Square square1, Square square2) {
+        System.out.println("Trying to execute " + square1 + square2);
+
         //region Handle board and move notation
         byte from = square1.index;
         byte to = square2.index;
@@ -607,7 +650,6 @@ public class Board {
             square1.removePiece();
 
             // Update
-            System.out.println(rookSquare);
             repaint();
 
             // Set kingside castling notation
@@ -696,6 +738,7 @@ public class Board {
 
         //region Handle game
 
+
         // Add it to move list and position to threefold repetition storage
         Move m = new Move(this, square1, square2);
         moves.add(m);
@@ -703,11 +746,12 @@ public class Board {
         updateHalfMoves(m);
 
         // Print out move made
-        System.out.println(m.notation);
+        System.out.println(m.getNotation());
+        System.out.println("Now it is " + (board.isWhitesMove ? "White's turn" : "Black's turn"));
 
         // Get Stockfish's response if possible
-//        Main.currentEngine.tryPlay(12);
-        runPerft(2, getCurrentFEN());
+        Main.currentEngine.tryPlay(2);
+//        runPerft(2, getCurrentFEN());
         //endregion
     }
 
@@ -724,8 +768,8 @@ public class Board {
     //endregion
 
     //region Piece Movement Logic // TODO change this to use Move()
-    public ArrayList<Byte> getRawMoves(Square square) {
-        ArrayList<Byte> byteMoves = new ArrayList<>();
+    public LinkedList<Integer> getRawMoves(Square square) {
+        LinkedList<Integer> accessibleSquareIndices = new LinkedList<>();
         byte piece = square.piece;
         byte location = square.index;
 
@@ -736,17 +780,17 @@ public class Board {
             case WHITE_PAWN -> {
                 // Pawn has no moves if on the 8th rank (for white)
                 if (location <= 7) {
-                    return byteMoves;
+                    return accessibleSquareIndices;
                 }
 
                 // If no pieces are in front of the pawn, it can move forward
                 Square upperSquare = squares[location - 8];
                 if (upperSquare.isEmpty()) {
-                    byteMoves.add((byte) (location - 8));
+                    accessibleSquareIndices.add(location - 8);
 
                     // Pawn can also move two squares if on the 2nd rank and no piece on the 4th rank
                     if (location / 8 == 6 && squares[location - 16].isEmpty()) {
-                        byteMoves.add((byte) (location - 16));
+                        accessibleSquareIndices.add(location - 16);
                     }
                 }
 
@@ -759,7 +803,7 @@ public class Board {
                     if (upperLeftSquare.piece < 0) {
 
                         // The pawn can capture diagonally to the upper left
-                        byteMoves.add((byte) (location - 9));
+                        accessibleSquareIndices.add(location - 9);
                     }
 
                     // If there's a black pawn to the left
@@ -769,7 +813,7 @@ public class Board {
                         if (upperLeftSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the upper left
-                            byteMoves.add((byte) (location - 9));
+                            accessibleSquareIndices.add(location - 9);
                         }
                     }
                 }
@@ -783,7 +827,7 @@ public class Board {
                     if (upperRightSquare.piece < 0) {
 
                         // The pawn can capture diagonally to the upper right
-                        byteMoves.add((byte) (location - 7));
+                        accessibleSquareIndices.add(location - 7);
                     }
 
                     // If there's a black pawn to the right
@@ -793,7 +837,7 @@ public class Board {
                         if (upperRightSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the upper right
-                            byteMoves.add((byte) (location - 7));
+                            accessibleSquareIndices.add(location - 7);
                         }
                     }
                 }
@@ -801,17 +845,17 @@ public class Board {
             case BLACK_PAWN -> {
                 // Pawn has no moves if on the 1st rank (for black)
                 if (location >= 56) {
-                    return byteMoves;
+                    return accessibleSquareIndices;
                 }
 
                 // If no pieces are below the pawn, it can move down
                 Square lowerSquare = squares[location + 8];
                 if (lowerSquare.isEmpty()) {
-                    byteMoves.add((byte) (location + 8));
+                    accessibleSquareIndices.add(location + 8);
 
                     // Pawn can also move two squares if on the 7th rank and no piece on the 5th rank
                     if (location / 8 == 1 && squares[location + 16].isEmpty()) {
-                        byteMoves.add((byte) (location + 16));
+                        accessibleSquareIndices.add(location + 16);
                     }
                 }
 
@@ -824,7 +868,7 @@ public class Board {
                     if (lowerLeftSquare.piece > 0) {
 
                         // The pawn can capture diagonally to the lower left
-                        byteMoves.add((byte) (location + 7));
+                        accessibleSquareIndices.add(location + 7);
                     }
 
                     // If there's a white pawn to the left
@@ -834,7 +878,7 @@ public class Board {
                         if (lowerLeftSquare.equals(getEnPassantTarget()))  {
 
                             // The pawn can capture diagonally to the lower left
-                            byteMoves.add((byte) (location + 7));
+                            accessibleSquareIndices.add(location + 7);
                         }
                     }
                 }
@@ -848,7 +892,7 @@ public class Board {
                     if (lowerRightSquare.piece > 0) {
 
                         // The pawn can capture diagonally to the lower right
-                        byteMoves.add((byte) (location + 9));
+                        accessibleSquareIndices.add(location + 9);
                     }
 
                     // If there's a white pawn to the right
@@ -857,7 +901,7 @@ public class Board {
                         // And if the space behind it is an En Passant Target
                         if (lowerRightSquare.equals(getEnPassantTarget()))  {
                             // The pawn can capture diagonally to the lower right
-                            byteMoves.add((byte) (location + 9));
+                            accessibleSquareIndices.add(location + 9);
                         }
                     }
                 }
@@ -882,7 +926,7 @@ public class Board {
                             if ((squares[target].piece * piece <= 0)) {
 
                                 // Add it to moves
-                                byteMoves.add((byte) target);
+                                accessibleSquareIndices.add(target);
                             }
                         }
                     }
@@ -922,11 +966,11 @@ public class Board {
 
                         // If the square is empty, add it to moves
                         if (squares[target].isEmpty()) {
-                            byteMoves.add((byte) target);
+                            accessibleSquareIndices.add(target);
                         }
                         // If the square has an enemy piece, add it and stop
                         else if (squares[target].piece * piece < 0) {
-                            byteMoves.add((byte) target);
+                            accessibleSquareIndices.add(target);
                             break;
                         }
                         // If the square has a friendly piece, stop
@@ -956,7 +1000,7 @@ public class Board {
                             if ((squares[target].piece * piece <= 0)) {
 
                                 // Add to moves
-                                byteMoves.add((byte) target);
+                                accessibleSquareIndices.add(target);
                             }
                         }
                     }
@@ -976,7 +1020,7 @@ public class Board {
                         if (squares[location + 3].hasNotChanged) {
 
                             // Add to moves
-                            byteMoves.add((byte) (location + 2));
+                            accessibleSquareIndices.add(location + 2);
                         }
                     }
 
@@ -992,7 +1036,7 @@ public class Board {
                         if (squares[location - 4].hasNotChanged)  {
 
                             // Add to moves
-                            byteMoves.add((byte) (location - 2));
+                            accessibleSquareIndices.add(location - 2);
 
                         }
                     }
@@ -1000,31 +1044,27 @@ public class Board {
             }
         }
 
-        return byteMoves;
+        return accessibleSquareIndices;
     }
 
-    public ArrayList<Byte> accessibleSquaresOf(Square square) {
-        ArrayList<Byte> validMoves = new ArrayList<>();
+    public ArrayList<Integer> accessibleSquaresOf(Square square) {
+        ArrayList<Integer> validMoves = new ArrayList<>();
         byte piece = square.piece;
         byte from = square.index;
 
-        ArrayList<Byte> rawMoves = getRawMoves(square);
+        LinkedList<Integer> rawMoves = getRawMoves(square);
 
         rawMovesLoop:
-        for (Byte to : rawMoves) {
+        for (int to : rawMoves) {
             // Create simulated board for this move
-            Board simulatedBoard = new Board(this);
+            Board simulatedBoard = new Board(this, from, (byte) to);
             Square simulatedFrom = simulatedBoard.squares[from];
             Square simulatedTo = simulatedBoard.squares[to];
 
             // First, throw out moves that leave king in check afterwards
             simulateMove(simulatedBoard, new Move(simulatedBoard, simulatedFrom, simulatedTo));
             boolean isInCheck = isKingInCheck(simulatedBoard, isWhitesMove);
-//
-//            if (to == 6 && isInCheck) {
-//                System.out.println(simulatedBoard.getCurrentFEN());
-//                int a = 0;
-//            }
+
             if (isInCheck) continue;
 
             // Additional castling checks:
@@ -1044,7 +1084,7 @@ public class Board {
                         new int[]{from - 1, from - 2};  // Queenside: 2 squares
 
                 for (int i : intermediates) {
-                    Board tempBoard = new Board(this);
+                    Board tempBoard = new Board(this, from, (byte) to);
                     Square tempFrom = tempBoard.squares[from];
                     Square tempTo = tempBoard.squares[i];
                     simulateMove(tempBoard, new Move(tempBoard, tempFrom, tempTo));
@@ -1209,8 +1249,8 @@ public class Board {
             if (s.piece == EMPTY) continue;
             if ((s.piece > 0) == isWhite) continue;
 
-            ArrayList<Byte> moves = board.getRawMoves(s);
-            if (moves.contains((byte) kingPos)) {
+            LinkedList<Integer> moves = board.getRawMoves(s);
+            if (moves.contains(kingPos)) {
                 return true;
             }
         }
@@ -1293,8 +1333,8 @@ public class Board {
             }
 
             // Loop over every square we can move to, adding a move to there to the possibilities
-            ArrayList<Byte> accessibleDestinations = accessibleSquaresOf(from);
-            for (byte to : accessibleDestinations) {
+            ArrayList<Integer> accessibleDestinations = accessibleSquaresOf(from);
+            for (int to : accessibleDestinations) {
 
                 // If move is a promotion, include all 4 variants
                 boolean isWhitePromotion = from.piece == WHITE_PAWN && to < 8;
@@ -1318,7 +1358,7 @@ public class Board {
 
     // In Board.java
     public Board getBoardIfMoveHappened(Move m) {
-        Board possible = new Board(this);
+        Board possible = new Board(this); // TODO figure out why new constructor doesn't work
 
         // Get the from/to squares from the COPIED BOARD (not original)
         Square newFrom = possible.squares[m.from.index];

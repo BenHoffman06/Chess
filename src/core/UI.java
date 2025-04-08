@@ -127,7 +127,6 @@ public class UI {
     }
 
     private static void select(Square s) {
-//        System.out.println("SELECTING");
         // If no square is previously selected
         if (selectedSquare == null && s != null) {
 
@@ -136,8 +135,9 @@ public class UI {
 
                 // That piece has to be the color of the person whose turn it is to move
                 boolean isRightColor = (Main.board.isWhitesMove && s.piece > 0) || (!Main.board.isWhitesMove && s.piece < 0);
-                if (isRightColor && !Main.currentEngine.isTurn()) {
+                if (isRightColor) {
                     selectedSquare = s;
+//                    System.out.println("Selected " + s);
                 }
             }
         } else {
@@ -161,13 +161,13 @@ public class UI {
     }
     //endregion
 
-    public static void handleInvalidMoveTo(Square s) {
+    public static void handleInvalidMoveTo(Move move) {
         UI.selectedSquare = null; // TODO CHANGE
 
-        UI.redCountdown = 25;
-        UI.redSquare = s;
+        UI.redCountdown = 50;
+        UI.redSquare = move.to;
 
-        repaint(); // TODO make this specific to where this square is
+        repaint();
     }
 
     //region GUI and MouseListeners Setup and Rendering
@@ -325,8 +325,6 @@ public class UI {
 
                 drawSquares(g, mainPanel);
 
-                tryDrawGameEndOverlay(g, mainPanel);
-
                 drawMaterialDifference(g, mainPanel, boardBounds);
 
                 drawEvalBar(g, mainPanel, boardBounds);
@@ -338,6 +336,8 @@ public class UI {
                 tryDrawingAccessibleSquares(g, mainPanel);
 
                 drawSquareNames(g);
+
+                tryDrawGameEndOverlay(g, mainPanel);
             }
         };
 
@@ -474,7 +474,7 @@ public class UI {
         double eval = stored;
         if (Main.currentEngine == null) return;
         if (!Main.currentEngine.isAwaitingResponse) {
-            eval = Main.currentEngine.getEval(12);
+            eval = Main.currentEngine.getEval(3);
         }
 //                eval *= -1;
         double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
@@ -492,7 +492,7 @@ public class UI {
 
         // Draw eval number
         g.setColor(BACKGROUND);
-        g.drawString(String.valueOf(eval == 0 ? 0 : -1 * eval), boardBounds.x - (int) (boardBounds.height / 9.5), evalBar.y + evalBar.height - 24);
+        g.drawString(String.format("%.2f", -1 * eval), boardBounds.x - (int) (boardBounds.height / 9.5), evalBar.y + evalBar.height - 24);
     }
 
     public static void tryDrawPromotionOverlay(Graphics g, JPanel panel) {
@@ -556,8 +556,8 @@ public class UI {
     public static void tryDrawingAccessibleSquares(Graphics g, JPanel panel) {
 
         for (Square s : Main.board.squares) {
-            for (Byte b : Main.accessibleMoves ) {
-                if ((int) b == (int) s.index){
+            for (Integer b : Main.accessibleMoves ) {
+                if (b == s.index){
                     double width = (.27 * getSquareSize());
                     int topLeft = (int) (((double) getSquareSize() / 2) - (width / 2));
 

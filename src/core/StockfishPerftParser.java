@@ -32,7 +32,6 @@ public class StockfishPerftParser {
                 }
 
                 if (line.contains(": ")) {
-//                    System.out.println(line);
                     String[] parts = line.split(": ");
                     if (parts.length == 2) {
                         String move = parts[0].trim();

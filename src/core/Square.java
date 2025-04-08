@@ -48,7 +48,7 @@ public class Square {
     }
 
     public String toString() {
-        return ("Location: " + index + ", Piece: " + piece);
+        return (" Location: " + index + ", Piece: " + piece);
     }
 
     public boolean isEmpty() {

@@ -20,7 +20,7 @@ public abstract class Engine {
     }
 
     boolean isTurn() {
-        return isPlaying && isWhite == board.isWhitesMove;
+        return isPlaying && (isWhite == board.isWhitesMove);
     }
 
     void makeBestMove(int depth) {
@@ -35,7 +35,7 @@ public abstract class Engine {
                     Thread.sleep(5000); // Wait for 5 seconds
                     if (!completed.get()) {
                         long elapsedTime = System.currentTimeMillis() - startTime;
-                        System.out.println("Still waiting for best move... " + elapsedTime + " milliseconds elapsed");
+//                        System.out.println("Still waiting for best move... " + elapsedTime + " milliseconds elapsed");
                     }
                 }
             } catch (InterruptedException e) {
@@ -49,9 +49,10 @@ public abstract class Engine {
             completed.set(true);
             long totalTime = System.currentTimeMillis() - startTime;
             if (bestMove != null) {
-                System.out.println("Made move after " + totalTime + " milliseconds");
                 Move best = new Move(board, bestMove);
-                board.attemptMove(best.from, best.to);
+                board.executeMove(best.from, best.to);
+                UI.repaint();
+                System.out.println("Made move " + bestMove + " after " + totalTime + " milliseconds");
             } else {
                 System.out.println("Failed to get best move after " + totalTime + " milliseconds");
             }
@@ -59,7 +60,6 @@ public abstract class Engine {
     }
 
     public CompletableFuture<String> getBestMoveInNewThread(int depth) {
-        System.out.println("Getting best move in new thread.");
         return CompletableFuture.supplyAsync(() -> {
             String fen = board.getCurrentFEN();
             return getBestMoveWithEvaluation(fen, depth)[0];
