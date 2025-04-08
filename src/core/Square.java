@@ -73,17 +73,21 @@ public class Square {
      * Returns a Color based on if white/black and if selected
      */
     public Color getCurrentColor() {
+
+        // Calculate relevant flags
         boolean isSelected = UI.isSelecting(Square.this);
-        boolean isWhiteSquare = isWhite();
         boolean isMisclicked = (UI.redCountdown > 0 && Square.this == UI.redSquare);
+        boolean wasJustMoved = !Main.moves.isEmpty() && (this == Main.moves.getLast().from || this == Main.moves.getLast().to);
 
+        // Apply misclick color if so
         if (isMisclicked) return UI.RED;
-        if (!isSelected && isWhiteSquare) return UI.WHITE;
-        if (!isSelected && !isWhiteSquare) return UI.BLACK;
-        if (isSelected && isWhiteSquare) return UI.SELECTED_WHITE;
-        if (isSelected && !isWhiteSquare) return UI.SELECTED_BLACK;
 
-        return Color.GREEN;
+        // Apply selection and recent move color mixing
+        Color color = isWhite() ? UI.WHITE : UI.BLACK;
+        if (isSelected) color = UI.mix(color, UI.SELECTED);
+        if (wasJustMoved) color = UI.mix(color, UI.JUST_MOVED);
+
+        return color;
     }
 
     public Color getCurrentComplementaryColor() {

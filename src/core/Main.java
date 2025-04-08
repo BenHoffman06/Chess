@@ -6,7 +6,12 @@ import static core.UI.*;
 
 public class Main {
 
+    public static boolean debug = false;
+
+
+
     public static Board board = new Board();
+
 
     public static boolean gameOngoing = true;
 //    public static Engine currentEngine = null;

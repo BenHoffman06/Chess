@@ -1,7 +1,5 @@
 package core;
 
-import org.w3c.dom.css.Rect;
-
 import javax.imageio.ImageIO;
 import javax.sound.sampled.*;
 import javax.swing.*;
@@ -36,8 +34,8 @@ public class UI {
     public static final Color BACKGROUND = Color.decode("#262421");
     public static final Color WHITE = Color.decode("#f0d9b5");
     public static final Color BLACK = Color.decode("#b58863");
-    public static final Color SELECTED_WHITE = Color.decode("#829769");
-    public static final Color SELECTED_BLACK = Color.decode("#646f40");
+    public static final Color SELECTED = new Color(16, 82, 26, 125);
+    public static final Color JUST_MOVED = new Color(25, 151, 2, 83);
     public static final Color RED = Color.decode("#af5f5f");
     //endregion
 
@@ -544,34 +542,43 @@ public class UI {
     }
 
     public static void tryDrawingDraggingPieces(Graphics g, JPanel panel) {
-        // Draw dragging pieces last (on top of everything)
-        if (selectedSquare != null && selectedSquare.piece != Main.EMPTY && selectedSquare.isDragging()) {
-            int x = dragX - getSquareSize() / 2;
-            int y = dragY - getSquareSize() / 2;
+        boolean aPieceIsDragging = selectedSquare != null && selectedSquare.piece != Main.EMPTY && selectedSquare.isDragging();
+        if (aPieceIsDragging) {
+
+            // Calculate bounds
+            int squareBounds = getSquareSize();
+            int x = dragX - squareBounds / 2;
+            int y = dragY - squareBounds / 2;
+
+            // Draw dragging piece
             BufferedImage img = pieceImages.get(selectedSquare.piece);
-            g.drawImage(img, x, y, getSquareSize(), getSquareSize(), panel);
+            g.drawImage(img, x, y, squareBounds, squareBounds, panel);
         }
     }
 
     public static void tryDrawingAccessibleSquares(Graphics g, JPanel panel) {
+        for (Integer index : Main.accessibleMoves) {
+            // Fetch square we are drawing
+            Square s = Main.board.squares[index];
 
-        for (Square s : Main.board.squares) {
-            for (Integer b : Main.accessibleMoves ) {
-                if (b == s.index){
-                    double width = (.27 * getSquareSize());
-                    int topLeft = (int) (((double) getSquareSize() / 2) - (width / 2));
+            // Calculate proportions
+            double width = (.27 * getSquareSize());
+            int topLeft = (int) (((double) getSquareSize() / 2) - (width / 2));
+            Point pos = getSquarePosition(s.index);
 
-                    Point pos = getSquarePosition(s.index);
-                    Color color = (s.isWhite()) ? SELECTED_WHITE : SELECTED_BLACK;
-                    g.setColor(color);
+            // Set color
+            Color color = (s.isWhite()) ? UI.mix(UI.WHITE, SELECTED) : UI.mix(UI.BLACK, SELECTED);
+            g.setColor(color);
 
-                    if (s.piece == Main.EMPTY) {
-                        g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
-                    } else {
-                        BufferedImage img = (s.isWhite()) ? pieceImages.get(TAKEABLE_WHITE) : pieceImages.get(TAKEABLE_BLACK);
-                        g.drawImage(img, pos.x, pos.y, getSquareSize(), getSquareSize(), panel);
-                    }
-                }
+            // Draw oval to represent empty accessible squares
+            if (s.piece == Main.EMPTY) {
+                g.fillOval(pos.x + topLeft, pos.y + topLeft, (int) width, (int) width);
+            }
+
+            // Draw image for accessible squares with pieces
+            else {
+                BufferedImage img = (s.isWhite()) ? pieceImages.get(TAKEABLE_WHITE) : pieceImages.get(TAKEABLE_BLACK);
+                g.drawImage(img, pos.x, pos.y, getSquareSize(), getSquareSize(), panel);
             }
         }
     }
@@ -755,4 +762,23 @@ public class UI {
             }
         }).start();
     }
+
+    /**
+     * Mixes color2 into color1, as if color2 were laid on top of color1.
+     * Will yield color2 if color2 alpha is 1
+     * Modifies color1
+     */
+    public static Color mix(Color color1, Color color2) {
+        float alpha2 = color2.getAlpha() / 255.0f;
+
+        // Ensure final alpha is always 1
+        float combinedAlpha = 1.0f;
+
+        int red = (int) (color1.getRed() * (1 - alpha2) + color2.getRed() * alpha2);
+        int green = (int) (color1.getGreen() * (1 - alpha2) + color2.getGreen() * alpha2);
+        int blue = (int) (color1.getBlue() * (1 - alpha2) + color2.getBlue() * alpha2);
+
+        return new Color(red, green, blue, (int) (combinedAlpha * 255));
+    }
+
 }

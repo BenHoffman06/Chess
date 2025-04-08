@@ -13,6 +13,18 @@ import static core.Board.isKingInCheck;
 import static core.Board.simulateMove;
 
 public class MyEngine extends Engine {
+
+
+    void setIsWhite(boolean isWhite) {
+        this.isWhite = isWhite;
+    }
+
+    boolean getIsWhite() {
+        return isWhite;
+    }
+
+
+
     private int leafNodesProcessed = 0;
     public int calledDepth = 0;
     public Move bestMove = null;
@@ -22,48 +34,98 @@ public class MyEngine extends Engine {
         return bestMove.getNotation();
     }
 
-
+    /**
+     * Uses minimax algorithm with alpha-beta pruning for efficiency in traversing position tree
+     */
     @Override
     public String[] calculateBestMoveWithEvaluation(String fen, int depth) {
         String[] response = new String[2];
-
-        //region calcEval
-//        double eval = calcEvalAndStoreBestMove(depth, Integer.MIN_VALUE, Integer.MAX_VALUE, board, isWhite);
-
-        // Update leaf nodes processed
-
-        leafNodesProcessed = 0;
-        //endregion
-
-        ArrayList<String> args = new ArrayList<>();
-        args.add("print");
-        response[1] = String.valueOf(calcEval(3, args));
-        response[0] = getBestMove(3);
-        return response;
-    }
-
-    public double calcEval(int depth, ArrayList<String> args) {
         calledDepth = depth;
-        double bestEval = isWhite ? Integer.MIN_VALUE : Integer.MAX_VALUE;
-        for (Move m : board.getPossibleMoves()) {
-            Board possible = board.getBoardIfMoveHappened(m);
+        bestMove = null;
+        leafNodesProcessed = 0;
 
-            // Fetch and store child eval
-            double childEval = calcEvalAndStoreBestMove(depth, Integer.MIN_VALUE, Integer.MAX_VALUE, possible, isWhite, possible, true);
-            bestEval = isWhite ? Math.max(bestEval, childEval) : Math.min(bestEval, childEval);
-
-            // Print debug data
-            if (args.contains("print")) {
-                System.out.print("Move: " + m.getNotation() + " Eval: " + String.format("%.2f", childEval)  + ", best eval seen so far: " + String.format("%.2f", bestEval) );
-                System.out.println("\tPositions Processed: " + leafNodesProcessed);
-            }
+        // If depth 0, skip multithreading and recursive calls
+        // Just return instant depth 0 evaluation from calcEvalBaseCase()
+        if (depth == 0) {
+            double eval = calcEvalBaseCase(board);
+            response[1] = String.valueOf(eval);
+            response[0] = String.valueOf(board.getPossibleMoves().getFirst()); // No move to return at depth 0
+            return response;
         }
 
-        // Update leaf nodes processed
-        leafNodesProcessed = 0;
+        ArrayList<Move> possibleMoves = board.getPossibleMoves();
+        if (possibleMoves.isEmpty()) {
+            double eval = calcEvalBaseCase(board);
+            response[1] = String.valueOf(eval);
+            response[0] = ""; // No move to return if no moves are possible
+            return response;
+        }
 
-        // Return eval
-        return bestEval;
+        Move currentBestMove = possibleMoves.getFirst();
+        double bestEval = isWhite ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+        double alpha = Integer.MIN_VALUE;
+        double beta = Integer.MAX_VALUE;
+
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        List<Future<Double>> futures = new ArrayList<>();
+
+        for (Move move : possibleMoves) {
+            final Move currentMove = move;
+            double finalAlpha = alpha;
+            double finalBeta = beta;
+            futures.add(executor.submit(() -> {
+                Board childBoard = board.getBoardIfMoveHappened(currentMove);
+                return calcEval(depth - 1, finalAlpha, finalBeta, childBoard, !isWhite, childBoard);
+            }));
+        }
+
+        List<Double> childEvals = new ArrayList<>();
+        for (Future<Double> future : futures) {
+            try {
+                childEvals.add(future.get());
+            } catch (InterruptedException | ExecutionException e) {
+                childEvals.add(isWhite ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
+            }
+        }
+        executor.shutdown();
+
+        for (int i = 0; i < possibleMoves.size(); i++) {
+            double childEval = childEvals.get(i);
+            Move move = possibleMoves.get(i);
+
+            if (isWhite) {
+                if (childEval > bestEval) {
+                    bestEval = childEval;
+                    currentBestMove = move;
+                    alpha = Math.max(alpha, bestEval);
+                }
+            } else {
+                if (childEval < bestEval) {
+                    bestEval = childEval;
+                    currentBestMove = move;
+                    beta = Math.min(beta, bestEval);
+                }
+            }
+
+//                if (beta <= alpha) break; // Alpha-beta pruning
+        }
+
+        bestMove = currentBestMove;
+
+        // Print debug data
+        if (Main.debug && bestMove != null) {
+            System.out.print("Move: " + bestMove.getNotation() + " Eval: " + String.format("%.2f", bestEval)  + ", best eval seen so far: " + String.format("%.2f", bestEval) );
+            System.out.println("\tPositions Processed: " + leafNodesProcessed);
+        }
+
+        response[1] = String.valueOf(bestEval);
+        if (bestMove != null) {
+            response[0] = bestMove.getNotation();
+        } else {
+            response[0] = ""; // Handle case where no best move was found
+        }
+        return response;
     }
 
     /**
@@ -98,143 +160,6 @@ public class MyEngine extends Engine {
 //            System.out.println(move.notation + "\tAlpha: " + alpha + ", Beta: " + beta);
         }
 
-        return eval;
-    }
-
-    /**
-     * Uses minimax algorithm with alpha-beta pruning for efficiency in traversing position tree
-     */
-//    public double calcEvalAndStoreBestMove(int depth, double alpha, double beta, Board current, boolean isMaximiser, Board board) {
-//        if (depth == 0) {
-//            return calcEvalBaseCase(board);
-//        }
-//
-//        bestMove = null;
-//        double eval = isMaximiser ? Integer.MIN_VALUE : Integer.MAX_VALUE;
-//
-//        ArrayList<Move> possibleMoves = current.getPossibleMoves();
-//        Move best = possibleMoves.getFirst();
-//        for (Move move : possibleMoves) {
-//
-////            // Nodes are pruned when beta <= alpha // TODO change this to <= when evaluation becomes more sophisticated
-////            if (beta < alpha) {
-////                break;
-////            }
-//
-//            // Get child eval
-//            Board possibleBoard = current.getBoardIfMoveHappened(move);
-//            double childEval =  calcEval(depth - 1, alpha, beta, possibleBoard, !isMaximiser, possibleBoard);
-//
-//            // Update best move
-//            best = ((childEval > alpha && isMaximiser) || (childEval < beta && !isMaximiser)) ? move : best;
-//
-//            // Update alpha
-//            alpha = Math.max(alpha, childEval);
-//
-//            // Update beta
-//            beta = Math.min(beta, childEval);
-//
-//            // Update eval
-//            eval = isMaximiser ? alpha : beta;
-//        }
-//
-//        bestMove = best;
-//        return eval;
-//    }
-
-    public double calcEvalAndStoreBestMove(int depth, double alpha, double beta, Board current, boolean isMaximiser, Board board, boolean isRoot) {
-        if (depth == 0) {
-            return calcEvalBaseCase(board);
-        }
-        if (current.isWhitesMove != isWhite) {
-            System.out.println("a: " + (isPlaying && (isWhite == board.isWhitesMove)) + ", isTurn: " + isTurn());
-
-            boolean isTurn = isTurn();
-            boolean a = isPlaying && (isWhite == board.isWhitesMove);
-
-            System.exit(1);
-        }
-        ArrayList<Move> possibleMoves = current.getPossibleMoves();
-        if (possibleMoves.isEmpty()) {
-            return calcEvalBaseCase(board); // Handle no moves
-        }
-
-        Move best = possibleMoves.getFirst();
-        double eval = isMaximiser ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-
-        if (isRoot) {
-            int numThreads = Runtime.getRuntime().availableProcessors();
-            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            List<Future<Double>> futures = new ArrayList<>();
-
-            // Submit all moves as parallel tasks
-            for (Move move : possibleMoves) {
-                final Move currentMove = move;
-                double finalAlpha = alpha;
-                double finalBeta = beta;
-                futures.add(executor.submit(() -> {
-                    Board childBoard = current.getBoardIfMoveHappened(currentMove);
-                    return calcEvalAndStoreBestMove(depth - 1, finalAlpha, finalBeta, childBoard, !isMaximiser, childBoard, false);
-                }));
-            }
-
-            // Collect results in order
-            List<Double> childEvals = new ArrayList<>();
-            for (Future<Double> future : futures) {
-                try {
-                    childEvals.add(future.get());
-                } catch (InterruptedException | ExecutionException e) {
-                    childEvals.add(isMaximiser ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
-                }
-            }
-            executor.shutdown();
-
-            // Process results sequentially to determine best move
-            for (int i = 0; i < possibleMoves.size(); i++) {
-                double childEval = childEvals.get(i);
-                Move move = possibleMoves.get(i);
-
-                if (isMaximiser) {
-                    if (childEval > eval) {
-                        eval = childEval;
-                        best = move;
-                        alpha = Math.max(alpha, eval);
-                    }
-                } else {
-                    if (childEval < eval) {
-                        eval = childEval;
-                        best = move;
-                        beta = Math.min(beta, eval);
-                    }
-                }
-
-//                if (beta <= alpha) break; // Alpha-beta pruning
-            }
-        } else {
-            // Sequential processing for non-root nodes
-            for (Move move : possibleMoves) {
-                if (beta <= alpha) break;
-
-                Board childBoard = current.getBoardIfMoveHappened(move);
-                double childEval = calcEvalAndStoreBestMove(depth - 1, alpha, beta, childBoard, !isMaximiser, childBoard, false);
-
-                if (isMaximiser) {
-                    if (childEval > eval) {
-                        eval = childEval;
-                        best = move;
-                        alpha = Math.max(alpha, eval);
-                    }
-                } else {
-                    if (childEval < eval) {
-                        eval = childEval;
-                        best = move;
-                        beta = Math.min(beta, eval);
-                    }
-                }
-            }
-        }
-
-        bestMove = best;
         return eval;
     }
 
