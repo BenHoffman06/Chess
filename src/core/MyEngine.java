@@ -53,23 +53,19 @@ public class MyEngine extends Engine {
             return response;
         }
 
+        // Initialize evaluation variables
         ArrayList<Move> possibleMoves = board.getPossibleMoves();
-        if (possibleMoves.isEmpty()) {
-            double eval = calcEvalBaseCase(board);
-            response[1] = String.valueOf(eval);
-            response[0] = ""; // No move to return if no moves are possible
-            return response;
-        }
-
         Move currentBestMove = possibleMoves.getFirst();
         double bestEval = isWhite ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
         double alpha = Integer.MIN_VALUE;
         double beta = Integer.MAX_VALUE;
 
+        // Initialize multithreading
         int numThreads = Runtime.getRuntime().availableProcessors();
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
         List<Future<Double>> futures = new ArrayList<>();
 
+        // Evaluate each possible move in its own thread
         for (Move move : possibleMoves) {
             final Move currentMove = move;
             double finalAlpha = alpha;
@@ -80,6 +76,7 @@ public class MyEngine extends Engine {
             }));
         }
 
+        // Collect results
         List<Double> childEvals = new ArrayList<>();
         for (Future<Double> future : futures) {
             try {
@@ -88,43 +85,31 @@ public class MyEngine extends Engine {
                 childEvals.add(isWhite ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
             }
         }
+
+        // Terminate multithreading
         executor.shutdown();
 
+        // Determine the best possible move from collected moves and their evals
         for (int i = 0; i < possibleMoves.size(); i++) {
             double childEval = childEvals.get(i);
             Move move = possibleMoves.get(i);
 
-            if (isWhite) {
-                if (childEval > bestEval) {
-                    bestEval = childEval;
-                    currentBestMove = move;
-                    alpha = Math.max(alpha, bestEval);
-                }
-            } else {
-                if (childEval < bestEval) {
-                    bestEval = childEval;
-                    currentBestMove = move;
-                    beta = Math.min(beta, bestEval);
-                }
+            // If the new move is better, update bestMove and bestEval
+            boolean whitePrefersNewMove = isWhite && childEval > bestEval;
+            boolean blackPrefersNewMove = !isWhite && childEval < bestEval;
+            if (whitePrefersNewMove || blackPrefersNewMove) {
+                bestEval = childEval;
+                currentBestMove = move;
             }
-
-//                if (beta <= alpha) break; // Alpha-beta pruning
         }
 
+        // Update final best move when complete
         bestMove = currentBestMove;
 
-        // Print debug data
-        if (Main.debug && bestMove != null) {
-            System.out.print("Move: " + bestMove.getNotation() + " Eval: " + String.format("%.2f", bestEval)  + ", best eval seen so far: " + String.format("%.2f", bestEval) );
-            System.out.println("\tPositions Processed: " + leafNodesProcessed);
-        }
+        // Return concluded eval and bestMove
+        response[1] = String.valueOf(bestEval); // Set eval field
+        response[0] = bestMove.getNotation(); // Set best move field
 
-        response[1] = String.valueOf(bestEval);
-        if (bestMove != null) {
-            response[0] = bestMove.getNotation();
-        } else {
-            response[0] = ""; // Handle case where no best move was found
-        }
         return response;
     }
 

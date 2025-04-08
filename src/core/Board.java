@@ -585,7 +585,7 @@ public class Board {
 
             //endregion
 
-            executeMove(square1, square2);
+            executeMove(square1, square2, chosenPieceToPromoteTo);
         }
         else {
             UI.handleInvalidMoveTo(new Move(Main.board, square1, square2));
@@ -596,8 +596,8 @@ public class Board {
      * Move piece from square1 to square2 <br>
      * returns chess notation for move
      */
-    public void executeMove(Square square1, Square square2) {
-        System.out.println("Trying to execute " + square1 + square2);
+    public void executeMove(Square square1, Square square2, byte chosenPieceToPromoteTo) {
+//        System.out.println("Trying to execute " + square1 + square2);
 
         //region Handle board and move notation
         byte from = square1.index;
@@ -746,24 +746,27 @@ public class Board {
         updateHalfMoves(m);
 
         // Print out move made
-        System.out.println(m.getNotation());
-        System.out.println("Now it is " + (board.isWhitesMove ? "White's turn" : "Black's turn"));
+        if (currentEngine.isTurn()) System.out.print("HUMAN: ");
+        else System.out.print("COMPUTER: ");
+        System.out.println("made move " + m.getNotation());
 
         // Get Stockfish's response if possible
-        Main.currentEngine.tryPlay(2);
+        Main.currentEngine.tryPlay(3);
 //        runPerft(2, getCurrentFEN());
         //endregion
     }
 
 
     public void handleCapture(byte piece, boolean playSound) {
-        if (piece == EMPTY) {
-            System.out.println("Cannot capture an empty piece!!");
-        }
+        // Handle edge cases of empty squares getting captured
+        if (piece == EMPTY) System.out.println("Cannot capture an empty piece!!");
+
+        // Play capture sound
+        if (playSound) UI.playSound("sounds/Capture.wav");
+
+        // Add captured piece to be displayed beside board
         ArrayList<Byte> capturedPiecesList = (piece > 0) ? capturedWhitePieces : capturedBlackPieces;
         capturedPiecesList.add(piece);
-
-        if (playSound) UI.playSound("sounds/Capture.wav");
     }
     //endregion
 
@@ -1367,18 +1370,7 @@ public class Board {
 
         // Handle promotions
         if (m.notation.length() == 5) {
-            char promoChar = m.notation.charAt(4);
-            possible.chosenPieceToPromoteTo = switch (promoChar) {
-                case 'Q' -> WHITE_QUEEN;
-                case 'R' -> WHITE_ROOK;
-                case 'B' -> WHITE_BISHOP;
-                case 'N' -> WHITE_KNIGHT;
-                case 'q' -> BLACK_QUEEN;
-                case 'r' -> BLACK_ROOK;
-                case 'b' -> BLACK_BISHOP;
-                case 'n' -> BLACK_KNIGHT;
-                default -> throw new RuntimeException("Incorrect promotion");
-            };
+            possible.chosenPieceToPromoteTo = m.getPromotionChoice();
         }
 
         simulateMove(possible, newMove);

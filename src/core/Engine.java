@@ -49,10 +49,12 @@ public abstract class Engine {
             completed.set(true);
             long totalTime = System.currentTimeMillis() - startTime;
             if (bestMove != null) {
+                // Execute best move
                 Move best = new Move(board, bestMove);
-                board.executeMove(best.from, best.to);
-                UI.repaint();
-                System.out.println("Made move " + bestMove + " after " + totalTime + " milliseconds");
+                board.executeMove(best.from, best.to, best.getPromotionChoice());
+
+                // Print move made
+//                System.out.println("COMPUTER: made move " + bestMove + " after " + totalTime + " milliseconds");
             } else {
                 System.out.println("Failed to get best move after " + totalTime + " milliseconds");
             }

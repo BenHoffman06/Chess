@@ -125,35 +125,48 @@ public class UI {
     }
 
     private static void select(Square s) {
+        // Catch clicking outside the board
+        if (s == null) return;
+
         // If no square is previously selected
-        if (selectedSquare == null && s != null) {
+        if (selectedSquare == null) {
 
             // Select this square only if it has a piece
             if (s.piece != Main.EMPTY) {
 
-                // That piece has to be the color of the person whose turn it is to move
-                boolean isRightColor = (Main.board.isWhitesMove && s.piece > 0) || (!Main.board.isWhitesMove && s.piece < 0);
-                if (isRightColor) {
+                // Select piece if it is that player's turn
+                if (s.hasPieceWhoseTurnItIsToMove()) {
+
+                    // Select piece and show accessible squares
                     selectedSquare = s;
-//                    System.out.println("Selected " + s);
+                    Main.accessibleMoves.addAll(Main.board.accessibleSquaresOf(s));
                 }
             }
         } else {
 
-            // If clicking different square
-            if (selectedSquare != s) {
+            // If new square to select has your piece
+            if (s.hasPieceWhoseTurnItIsToMove()) {
 
-                // And if previously selected square has a piece
-                if (selectedSquare.piece != Main.EMPTY) {
-
-                    // Try to move to new square
-                    Main.board.attemptMove(selectedSquare, s);
+                // If you clicked on the selected square again, deselect it
+                if (selectedSquare == s) {
+                    selectedSquare = null;
                 }
-                // Clear selection after move or if selected square was empty
+
+                // Otherwise, select that piece instead
+                else selectedSquare = s;
+
             }
 
-            // Clicking the same square again: deselect
-            selectedSquare = null;
+            // Otherwise
+            else {
+
+                // Try to move to the second square
+                Main.board.attemptMove(selectedSquare, s);
+
+                // Clear selected square
+                selectedSquare = null;
+            }
+
         }
         repaint();
     }
@@ -176,43 +189,42 @@ public class UI {
 
             @Override
             public void mousePressed(MouseEvent e) {
-
+                // Process button clicks on endgame panel
                 if (endGamePanelShouldBeShown) {
                     endGamePanel.handleMouseClick(e.getPoint());
                     return;
                 }
 
-                // Focus on promoting piece UI if promotion is ongoing
+                // If promoting, handle clicks on promotion UI
                 else if (isPromoting) {
+                    // Handle all promotion-related clicks in one place
+                    Point clickPoint = e.getPoint();
 
-                    //region Handle clicking on promotion options
-                    for (Rectangle r : clickablePromotionRegions) {
-                        // Inside the loop where promotion regions are checked
-                        if (r.contains(e.getPoint())) {
-                            // Find piece clicked on
-                            byte selectedPiece = Objects.requireNonNull(getSquareAt(e.getPoint())).getPromotionOption();
-//                            System.out.println("You clicked on piece value: " + selectedPiece);
-
-                            // Process promotion by calling movePiece with stored from and to
-                            Main.board.chosenPieceToPromoteTo = selectedPiece;
-                            // We skip calling attemptMove first because that was already called to set up piece UI, and now we know the promotion is legal
-                            Main.board.executeMove(UI.promotionFrom, UI.promotionTo);
-
-                            // Reset promotion state
-                            isPromoting = false;
-                            promotionFrom = null;
-                            promotionTo = null;
-                            promotionEscapeBounds = null;
-
-                            // Redraw updated board
+                    // 1. First check promotion pieces
+                    for (int i = 0; i < clickablePromotionRegions.length; i++) {
+                        Rectangle r = clickablePromotionRegions[i];
+                        if (r.contains(clickPoint)) {
+                            // Handle promotion piece selection
+                            byte selectedPiece = getPromotionPieceForIndex(i);
+                            Main.board.executeMove(UI.promotionFrom, UI.promotionTo, selectedPiece);
+                            resetPromotionState();
                             repaint();
                             return;
                         }
                     }
-                    //endregion
 
-                    // Ignore any mouse presses until a UI selection is made
-                    return;
+                    // 2. If clicked elsewhere on board (undo button or not):
+                    // Undo promotion
+                    boolean clickedOnBoard = getSquareAt(e.getPoint()) != null;
+                    if (clickedOnBoard) {
+                        System.out.println("Clicked undo");
+                        resetPromotionState();
+                        repaint();
+                        return;
+                    }
+//
+//                    // 3. If clicked outside, do nothing
+//                    return;
                 }
 
                 //region Handle square selection/deselection
@@ -269,31 +281,34 @@ public class UI {
             public void mouseReleased(MouseEvent e) {
                 if (beingDragged) {
                     select(getSquareAt(e.getPoint()));
-                }
 
-                // Update being dragged
-                beingDragged = false;
+                    // Stop showing accessible squares
+                    Main.accessibleMoves.clear();
+
+                    // Update being dragged
+                    beingDragged = false;
+                }
 
                 // Ignore if game is over
                 if (!Main.gameOngoing) {
                     return;
                 }
 
-                // If clicked on undo button
-                if (promotionEscapeHover) {
-                    System.out.println("Clicked undo");
-
-                    //region Reset promotion variables
-                    UI.isPromoting = false;
-                    promotionSquare = null;
-                    UI.promotionFrom = null;
-                    UI.promotionTo = null;
-                    promotionEscapeHover = false;
-                    //endregion
-
-                    repaint();
-                    return;
-                }
+//                // If clicked on undo button
+//                if (promotionEscapeHover) {
+//                    System.out.println("Clicked undo");
+//
+//                    //region Reset promotion variables
+//                    UI.isPromoting = false;
+//                    promotionSquare = null;
+//                    UI.promotionFrom = null;
+//                    UI.promotionTo = null;
+//                    promotionEscapeHover = false;
+//                    //endregion
+//
+//                    repaint();
+//                    return;
+//                }
 
                 // If previously selected a different, move to new point
                 Square targetSquare = getSquareAt(e.getPoint());
@@ -303,7 +318,7 @@ public class UI {
                 }
             }
 
-            private Square getSquareAt(Point p) {
+            public Square getSquareAt(Point p) {
                 for (Square square : Main.board.squares) {
                     if (getSquareBounds(square).contains(p)) {
                         return square;
@@ -493,6 +508,27 @@ public class UI {
         g.drawString(String.format("%.2f", -1 * eval), boardBounds.x - (int) (boardBounds.height / 9.5), evalBar.y + evalBar.height - 24);
     }
 
+    // Helper method to get promotion piece based on index
+    private static byte getPromotionPieceForIndex(int index) {
+        boolean isWhite = promotionSquare.index < 8;
+        return new byte[] {
+                isWhite ? Main.WHITE_QUEEN : Main.BLACK_QUEEN,
+                isWhite ? Main.WHITE_KNIGHT : Main.BLACK_KNIGHT,
+                isWhite ? Main.WHITE_ROOK : Main.BLACK_ROOK,
+                isWhite ? Main.WHITE_BISHOP : Main.BLACK_BISHOP
+        }[index];
+    }
+
+    // Helper method to reset promotion state
+    private static void resetPromotionState() {
+        UI.isPromoting = false;
+        promotionSquare = null;
+        UI.promotionFrom = null;
+        UI.promotionTo = null;
+        promotionEscapeBounds = null;
+        promotionEscapeHover = false;
+    }
+
     public static void tryDrawPromotionOverlay(Graphics g, JPanel panel) {
         if (isPromoting) {
             // Calculate relevant variables
@@ -507,7 +543,7 @@ public class UI {
                 y = y - Undoheight + squareSize;
             }
             promotionEscapeBounds = new Rectangle(promotionPos.x, y, squareSize, Undoheight);
-//                    System.out.println("Promotion escape bounds: " + promotionEscapeBounds);
+
             //region Draw promotion UI background
             BufferedImage whitePromoImg = promotionEscapeHover ? pieceImages.get(PROMO_BACKGROUND_UNDO_SELECTED) : pieceImages.get(PROMO_BACKGROUND);
             BufferedImage blackPromoImg = flipImageVertically(whitePromoImg, (Graphics2D) g);

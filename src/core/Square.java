@@ -95,6 +95,12 @@ public class Square {
         return (isWhite()) ? UI.BLACK : UI.WHITE;
     }
 
+    public boolean hasPieceWhoseTurnItIsToMove() {
+        boolean hasWhitePieceWhichCanMove = Main.board.isWhitesMove && piece > 0;
+        boolean hasBlackPieceWhichCanMove = !Main.board.isWhitesMove && piece < 0;
+        return hasWhitePieceWhichCanMove || hasBlackPieceWhichCanMove;
+    }
+
     public char getPieceChar() {
         switch (this.piece) {
             case Main.WHITE_PAWN, Main.BLACK_PAWN -> {

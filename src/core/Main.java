@@ -6,9 +6,7 @@ import static core.UI.*;
 
 public class Main {
 
-    public static boolean debug = false;
-
-
+    public static boolean debug = true;
 
     public static Board board = new Board();
 
@@ -87,7 +85,6 @@ public class Main {
         String EN_PASSANT_TESTING_FEN = "k1K5/1p1p1p2/8/2P1P1P1/1pPp1p2/8/4P1P1/8 b - c3 0 1";
         String EN_PASSANT_TESTING_FEN_2 = "k1K5/1p3p2/8/2PpP1P1/1pPp1p2/8/4P1P1/8 w - d6 0 1";
         String EN_PASSANT_TESTING_FEN_3 = "k1K5/1p1p1p2/8/2P3P1/1pPp1p2/8/4P1P1/8 b - c3 0 1";
-
         String PROMOTION_TESTING_FEN = "8/KPPP1PP1/8/k7/8/8/1ppp1pp1/8 w - - 0 1";
         String PROMOTION_TESTING_FEN_2 = "K7/6P1/8/k7/8/8/1p6/8 b - - 0 1";
         String KNIGHT_CHECKMATE_TESTING_FEN = "1nnn4/2nnn3/2knnn2/8/nnnnnnnn/n3nnnn/8/2K5 b - - 0 1";
@@ -95,7 +92,7 @@ public class Main {
         String KING_AND_PAWN_MIRRORED_ENDGAME_TESTING_FEN = "1k6/2p5/8/8/8/8/2PK4/8 b - - 0 1";
         String DEVELOPMENT_TESTING_FEN = "rnbqkbnr/pppppppp/8/8/2BPPB2/2N2N2/1PP2PPP/R2QR1K1 w Qkq - 0 1";
 
-        String selectedFEN = MIDGAME_TESTING_FEN;
+        String selectedFEN = PROMOTION_TESTING_FEN;
         board.setFromFEN(selectedFEN);
 
         // Set up engine

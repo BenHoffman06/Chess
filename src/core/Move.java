@@ -82,6 +82,21 @@ public class Move {
         return false;
     }
 
+    public byte getPromotionChoice() {
+        char promoChar = promotedTo;
+        return switch (promoChar) {
+            case 'Q' -> WHITE_QUEEN;
+            case 'R' -> WHITE_ROOK;
+            case 'B' -> WHITE_BISHOP;
+            case 'N' -> WHITE_KNIGHT;
+            case 'q' -> BLACK_QUEEN;
+            case 'r' -> BLACK_ROOK;
+            case 'b' -> BLACK_BISHOP;
+            case 'n' -> BLACK_KNIGHT;
+            default -> throw new RuntimeException("Incorrect promotion");
+        };
+    }
+
     public boolean isWhitePromotion() {
         return from.piece == WHITE_PAWN && to.index < 8;
     }
