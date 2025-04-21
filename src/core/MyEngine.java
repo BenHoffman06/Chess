@@ -97,10 +97,15 @@ public class MyEngine extends Engine {
             // If the new move is better, update bestMove and bestEval
             boolean whitePrefersNewMove = isWhite && childEval > bestEval;
             boolean blackPrefersNewMove = !isWhite && childEval < bestEval;
+
             if (whitePrefersNewMove || blackPrefersNewMove) {
                 bestEval = childEval;
                 currentBestMove = move;
             }
+
+            System.out.println("move: " + childEval);
+            System.out.println("bestMove: " + currentBestMove);
+            System.out.println("bestEval: " + bestEval);
         }
 
         // Update final best move when complete
@@ -110,6 +115,8 @@ public class MyEngine extends Engine {
         response[1] = String.valueOf(bestEval); // Set eval field
         response[0] = bestMove.getNotation(); // Set best move field
 
+        System.out.println("Leaf nodes processed: " + leafNodesProcessed);
+
         return response;
     }
 
@@ -117,6 +124,7 @@ public class MyEngine extends Engine {
      * Uses minimax algorithm with alpha-beta pruning for efficiency in traversing position tree
      */
     public double calcEval(int depth, double alpha, double beta, Board current, boolean isMaximiser, Board board) {
+        System.out.println("Calc eval called.");
         if (depth == 0) {
             return calcEvalBaseCase(board);
         }
@@ -142,9 +150,8 @@ public class MyEngine extends Engine {
             // Update eval
             eval = isMaximiser ? alpha : beta;
 
-//            System.out.println(move.notation + "\tAlpha: " + alpha + ", Beta: " + beta);
+            System.out.println(move.notation + "\tAlpha: " + alpha + ", Beta: " + beta);
         }
-
         return eval;
     }
 

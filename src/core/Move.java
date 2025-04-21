@@ -12,7 +12,7 @@ public class Move {
     public Square from; // From
     public Square to; // To
     public boolean isCapture;
-    public char promotedTo = 'Z'; // Only referenced when move involves a promotion
+    public char promotedTo; // Only referenced when move involves a promotion
     public Board on; // TODO force constructors to use this
 
 //    public Move(int number, String notation, Square from, Square to) {
@@ -34,6 +34,8 @@ public class Move {
         this.to = to;
         this.on = on;
         if (!from.isIn(on) || !to.isIn(on)) {
+            System.out.println(from.isIn(on) + ", " +  to.isIn(on));
+            System.out.println("ERROR: Board and Square mismatch in Move constructor");
             throw new RuntimeException("Board and Square mismatch in Move constructor");
         }
         if (to.piece != EMPTY) {
@@ -58,16 +60,20 @@ public class Move {
         String secondSquare = moveNotation.substring(2, 4);
         this.from = on.convertStringToSquare(firstSquare);
         this.to = on.convertStringToSquare(secondSquare);
+        this.notation = moveNotation;
 
-        notation = firstSquare + secondSquare;
         if (notation.contains("x")) isCapture = true;
 
         if (moveNotation.length() == 5) {
             promotedTo = moveNotation.charAt(4);
             notation += promotedTo;
+        } else {
+            promotedTo = to.piece > 1 ? 'Q' : 'q';
         }
 
         if (!from.isIn(on) || !to.isIn(on)) {
+            System.out.println(from.isIn(on) + ", " +  to.isIn(on));
+            System.out.println("ERROR: Board and Square mismatch in Move constructor");
             throw new RuntimeException("Board and Square mismatch in Move constructor");
         }
     }
@@ -93,7 +99,10 @@ public class Move {
             case 'r' -> BLACK_ROOK;
             case 'b' -> BLACK_BISHOP;
             case 'n' -> BLACK_KNIGHT;
-            default -> throw new RuntimeException("Incorrect promotion");
+            default -> {
+                System.out.println("Incorrect promotion");
+                throw new RuntimeException("Incorrect promotion");
+            }
         };
     }
 

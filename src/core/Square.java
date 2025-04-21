@@ -91,7 +91,6 @@ public class Square {
     }
 
     public Color getCurrentComplementaryColor() {
-        Color current = getCurrentColor();
         return (isWhite()) ? UI.BLACK : UI.WHITE;
     }
 

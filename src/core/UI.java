@@ -135,7 +135,7 @@ public class UI {
             if (s.piece != Main.EMPTY) {
 
                 // Select piece if it is that player's turn
-                if (s.hasPieceWhoseTurnItIsToMove()) {
+                if (s.hasPieceWhoseTurnItIsToMove() && !Main.currentEngine.isTurn()) {
 
                     // Select piece and show accessible squares
                     selectedSquare = s;
@@ -206,7 +206,7 @@ public class UI {
                         if (r.contains(clickPoint)) {
                             // Handle promotion piece selection
                             byte selectedPiece = getPromotionPieceForIndex(i);
-                            Main.board.executeMove(UI.promotionFrom, UI.promotionTo, selectedPiece);
+                            Main.board.executeMove(UI.promotionFrom, UI.promotionTo, selectedPiece, false);
                             resetPromotionState();
                             repaint();
                             return;

@@ -19,7 +19,7 @@ public class Board {
             "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
             "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
     };
-    private static final Map<String, Square> nameToSquare = new HashMap<>();
+    private final Map<String, Square> nameToSquare = new HashMap<>();
 
     public static final String STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -566,16 +566,16 @@ public class Board {
         // Reset accessible moves
         accessibleMoves.clear();
 
-        boolean canMakeMove = board.accessibleSquaresOf(square1).contains((int) square2.index);
+        boolean canMakeMove = accessibleSquaresOf(square1).contains((int) square2.index);
         if (canMakeMove) {
 
             //region Set up promotion prompt if promoting and prompt is not already up
 
-            boolean isWhitePromotion = board.squares[from].piece == WHITE_PAWN && to < 8;
-            boolean isBlackPromotion = board.squares[from].piece == BLACK_PAWN && to >= 56;
+            boolean isWhitePromotion = squares[from].piece == WHITE_PAWN && to < 8;
+            boolean isBlackPromotion = squares[from].piece == BLACK_PAWN && to >= 56;
             if (!UI.isPromoting && (isWhitePromotion || isBlackPromotion)) {
                 UI.isPromoting = true;
-                promotionSquare = board.squares[to];
+                promotionSquare = squares[to];
                 // Store the from and to squares for the promotion move
                 UI.promotionFrom = square1;
                 UI.promotionTo = square2;
@@ -585,10 +585,14 @@ public class Board {
 
             //endregion
 
-            executeMove(square1, square2, chosenPieceToPromoteTo);
+            executeMove(square1, square2, chosenPieceToPromoteTo, false);
+
+            // Get engine's response if possible
+            Main.currentEngine.tryPlay(3);
         }
         else {
-            UI.handleInvalidMoveTo(new Move(Main.board, square1, square2));
+            Move invalid = new Move(board, square1.getSquareName() + square2.getSquareName());
+            UI.handleInvalidMoveTo(invalid);
         }
     }
 
@@ -596,9 +600,8 @@ public class Board {
      * Move piece from square1 to square2 <br>
      * returns chess notation for move
      */
-    public void executeMove(Square square1, Square square2, byte chosenPieceToPromoteTo) {
+    public void executeMove(Square square1, Square square2, byte chosenPieceToPromoteTo, boolean isEngineMove) {
 //        System.out.println("Trying to execute " + square1 + square2);
-
         //region Handle board and move notation
         byte from = square1.index;
         byte to = square2.index;
@@ -609,7 +612,7 @@ public class Board {
         String moveNotation = null;
 
         // Update variables
-        board.isWhitesMove = !board.isWhitesMove;
+        isWhitesMove = !isWhitesMove;
         UI.selectedSquare = null;
 
         // Setup chess notation
@@ -623,7 +626,7 @@ public class Board {
         }
 
         if (square2.piece != EMPTY) {
-            board.handleCapture(square2.piece, true);
+            handleCapture(square2.piece, true);
             takesString = "x";
         }
 
@@ -638,8 +641,8 @@ public class Board {
         if (isKingsideCastle) {
 
             // bring rookSquare other side
-            Square rookSquare = board.squares[square2.index + 1];
-            Square otherSide = board.squares[square2.index - 1];
+            Square rookSquare = squares[square2.index + 1];
+            Square otherSide = squares[square2.index - 1];
             otherSide.piece = rookSquare.piece;
 //            rookSquare.piece = EMPTY;
             rookSquare.removePiece();
@@ -660,8 +663,8 @@ public class Board {
         if (isQueensideCastle) {
 
             // bring rook other side
-            Square rookSquare = board.squares[square2.index - 2];
-            Square otherSide = board.squares[square2.index + 1];
+            Square rookSquare = squares[square2.index - 2];
+            Square otherSide = squares[square2.index + 1];
             otherSide.piece = rookSquare.piece;
             rookSquare.piece = EMPTY;
 
@@ -679,16 +682,16 @@ public class Board {
         //endregion
 
         //region Handle promotions
-        boolean isWhitePromotion = board.squares[from].piece == WHITE_PAWN && to < 8;
-        boolean isBlackPromotion = board.squares[from].piece == BLACK_PAWN && to >= 56;
+        boolean isWhitePromotion = squares[from].piece == WHITE_PAWN && to < 8;
+        boolean isBlackPromotion = squares[from].piece == BLACK_PAWN && to >= 56;
         if (isWhitePromotion || isBlackPromotion) {
             // Set promotion variables
             promotionSquare = square2;
             isPromoting = false;
 
             // Update pieces on board
-            board.squares[to].piece = chosenPieceToPromoteTo;
-            board.squares[from].piece = EMPTY;
+            squares[to].piece = chosenPieceToPromoteTo;
+            squares[from].piece = EMPTY;
 
             // Reset chosen piece to promote to
             chosenPieceToPromoteTo = 0;
@@ -697,30 +700,30 @@ public class Board {
 
         //region Handle en-passant
 
-        if (square2.equals(board.getEnPassantTarget())) {
-            Square behind = board.squares[square2.index + Integer.signum(square1.piece) * 8];
+        if (square2.equals(getEnPassantTarget())) {
+            Square behind = squares[square2.index + Integer.signum(square1.piece) * 8];
             behind.piece = EMPTY;
             takesString = "x";
-            board.handleCapture((byte) (square1.piece * -1), true);
+            handleCapture((byte) (square1.piece * -1), true);
         }
         //endregion
 
         //region Update en passant targets if pawn moved two squares
         if (Math.abs(square1.piece) == WHITE_PAWN && Math.abs(from - to) == 16) {
             int enPassantSquareIndex = (from + to) / 2;
-            board.setEnPassantTarget(board.squares[enPassantSquareIndex]);
+            setEnPassantTarget(squares[enPassantSquareIndex]);
         } else {
-            board.resetEnPassantTarget();
+            resetEnPassantTarget();
         }
         //endregion
 
         // If a non-promotion and non-castling move, update new square
         if (!isBlackPromotion && !isWhitePromotion && !isKingsideCastle && !isQueensideCastle) {
-            board.squares[to].piece = board.squares[from].piece;
+            squares[to].piece = squares[from].piece;
         }
 
         // Remove piece which moved from its original square
-        board.squares[from].piece = EMPTY;
+        squares[from].piece = EMPTY;
 
         // Finally calculate move notation
         if (!takesString.isEmpty()) {
@@ -733,14 +736,14 @@ public class Board {
             moveNotation += String.valueOf(square2.getPieceChar());
         }
 
-        UI.repaint();
         //endregion
 
         //region Handle game
 
 
         // Add it to move list and position to threefold repetition storage
-        Move m = new Move(this, square1, square2);
+//        Move m = new Move(this, square1, square2);
+        Move m = new Move(this, square1.getSquareName() + square2.getSquareName());
         moves.add(m);
         threefoldStates.add(getBoardStateForThreefoldChecking());
         updateHalfMoves(m);
@@ -750,8 +753,7 @@ public class Board {
         else System.out.print("COMPUTER: ");
         System.out.println("made move " + m.getNotation());
 
-        // Get Stockfish's response if possible
-        Main.currentEngine.tryPlay(3);
+        repaint();
 //        runPerft(2, getCurrentFEN());
         //endregion
     }
@@ -1088,9 +1090,7 @@ public class Board {
 
                 for (int i : intermediates) {
                     Board tempBoard = new Board(this, from, (byte) to);
-                    Square tempFrom = tempBoard.squares[from];
-                    Square tempTo = tempBoard.squares[i];
-                    simulateMove(tempBoard, new Move(tempBoard, tempFrom, tempTo));
+                    simulateMove(tempBoard, new Move(tempBoard, Board.squareName[from] + Board.squareName[i]));
 
                     if (isKingInCheck(tempBoard, isWhitesMove)) {
                         continue rawMovesLoop;
@@ -1211,8 +1211,8 @@ public class Board {
         }
 
         // Check checkmate
-        if (isKingInCheck(board, board.isWhitesMove) && gameOngoing) {
-            String winner = board.isWhitesMove ? "Black" : "White";
+        if (isKingInCheck(board, isWhitesMove) && gameOngoing) {
+            String winner = isWhitesMove ? "Black" : "White";
             UI.summonEndGamePanel(winner + " Wins", "by checkmate");
 
             playSound("sounds/beep.wav");
@@ -1303,18 +1303,18 @@ public class Board {
     }
 
     public boolean piecesCanMove() {
-        for (Square s : board.squares) {
+        for (Square s : squares) {
             if (s.piece == EMPTY) {
                 continue;
             }
             boolean isWhite = Math.signum(s.piece) > 0;
-            boolean isPiecesTurnToMove =  isWhite && board.isWhitesMove || !isWhite && !board.isWhitesMove;
+            boolean isPiecesTurnToMove =  isWhite && isWhitesMove || !isWhite && !isWhitesMove;
 
             // If it is the correct color
             if (isPiecesTurnToMove) {
 
                 // And if it can move somewhere
-                if (!board.accessibleSquaresOf(s).isEmpty()) {
+                if (!accessibleSquaresOf(s).isEmpty()) {
 
                     return true;
                 }
@@ -1344,14 +1344,14 @@ public class Board {
                 boolean isBlackPromotion = from.piece == BLACK_PAWN && to >= 56;
                 if (isWhitePromotion || isBlackPromotion) {
                     char[] promotionOptions = isWhitesMove ? new char[]{'Q', 'N', 'R', 'B'} : new char[]{'q', 'n', 'r', 'b'};
-                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[0]));
-                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[1]));
-                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[2]));
-                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName() + promotionOptions[3]));
+                    possibleMoves.add(new Move(board, from.getSquareName() + squares[to].getSquareName() + promotionOptions[0]));
+                    possibleMoves.add(new Move(board, from.getSquareName() + squares[to].getSquareName() + promotionOptions[1]));
+                    possibleMoves.add(new Move(board, from.getSquareName() + squares[to].getSquareName() + promotionOptions[2]));
+                    possibleMoves.add(new Move(board, from.getSquareName() + squares[to].getSquareName() + promotionOptions[3]));
                 }
 
                 else {
-                    possibleMoves.add(new Move(board, from.getSquareName() + board.squares[to].getSquareName()));
+                    possibleMoves.add(new Move(board, from.getSquareName() + squares[to].getSquareName()));
                 }
             }
 
@@ -1366,6 +1366,7 @@ public class Board {
         // Get the from/to squares from the COPIED BOARD (not original)
         Square newFrom = possible.squares[m.from.index];
         Square newTo = possible.squares[m.to.index];
+//        Move newMove = new Move(possible, newFrom.getSquareName() + newTo.getSquareName());
         Move newMove = new Move(possible, newFrom, newTo);
 
         // Handle promotions
