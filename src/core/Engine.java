@@ -54,11 +54,10 @@ public abstract class Engine {
             if (bestMove != null) {
                 // Execute best move
                 Move best = new Move(board, bestMove);
-                System.out.println("Engine is trying to make move " + best.getNotation());
                 board.executeMove(best.from, best.to, best.getPromotionChoice(), true);
-                System.out.println("Engine finished executing chosen move");
                 // Print move made
-//                System.out.println("COMPUTER: made move " + bestMove + " after " + totalTime + " milliseconds");
+                System.out.print("COMPUTER: made move " + bestMove + " after " + totalTime + " milliseconds");
+
             } else {
                 System.out.println("Failed to get best move after " + totalTime + " milliseconds");
             }
@@ -75,7 +74,6 @@ public abstract class Engine {
     public double getEval(int depth) {
         String fen = board.getCurrentFEN();
         String[] moveAndEval = getBestMoveWithEvaluation(fen, depth);
-
         return moveAndEval.length > 1 ? Double.parseDouble(moveAndEval[1]) : 0.0;
     }
 

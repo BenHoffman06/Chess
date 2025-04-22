@@ -589,6 +589,7 @@ public class Board {
 
             // Get engine's response if possible
             Main.currentEngine.tryPlay(3);
+
         }
         else {
             Move invalid = new Move(board, square1.getSquareName() + square2.getSquareName());
@@ -749,9 +750,7 @@ public class Board {
         updateHalfMoves(m);
 
         // Print out move made
-        if (currentEngine.isTurn()) System.out.print("HUMAN: ");
-        else System.out.print("COMPUTER: ");
-        System.out.println("made move " + m.getNotation());
+        if (currentEngine.isTurn()) System.out.println("HUMAN: made move " + m.getNotation());
 
         repaint();
 //        runPerft(2, getCurrentFEN());

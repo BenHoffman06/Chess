@@ -408,13 +408,11 @@ public class UI {
     }
 
     public static void drawMaterialDifference(Graphics g, JPanel panel, Rectangle boardBounds) {
-
-
         // Sort lost pieces: white pieces in natural order, black pieces in reverse order.
         Main.board.capturedWhitePieces.sort(Byte::compare);
         Main.board.capturedBlackPieces.sort(Comparator.reverseOrder());
 
-        // Calculate variables for displaying material difference
+        // Calculate relevant variables
         int materialDiff = Main.board.getMaterialDiff();
         boolean materialOnWhiteSide = (materialDiff > 0);
         int pieceWidth = boardBounds.width / 24;
@@ -422,7 +420,7 @@ public class UI {
         byte previous = 0;
         int boardRightEdge = boardBounds.x + boardBounds.width;
 
-        // --- Draw white lost pieces ---
+        //region Draw white lost pieces
         // Start drawing to the right of the board, vertically centered using heightOffset.
         Point whiteStart = new Point(boardRightEdge + boardBounds.width / 16, (boardBounds.y + heightOffset) - (pieceWidth / 2));
         int newX = whiteStart.x;
@@ -437,12 +435,16 @@ public class UI {
             previous = piece;
             newX += pieceWidth;
         }
+
+        // Draw material difference number
         if (materialOnWhiteSide && materialDiff != 0) {
             g.setColor(Color.WHITE);
             g.drawString("+" + materialDiff, newX, whiteStart.y + pieceWidth);
         }
+        //endregion
 
-        // --- Draw black lost pieces ---
+        //region Draw black lost pieces
+
         // First, create a white background for each slot.
         Point blackStart = new Point(boardRightEdge + boardBounds.width / 16,
                 (boardBounds.y + boardBounds.height - heightOffset - (pieceWidth / 2)));
@@ -459,10 +461,10 @@ public class UI {
             newX += pieceWidth;
         }
 
+        // Draw material difference number
         if (!materialOnWhiteSide && materialDiff != 0) {
             g.drawString("+" + -1 * materialDiff, newX, blackStart.y + pieceWidth);
         }
-
 
         // Then, draw the black pieces over the background.
         // Reset positioning variables for a clean draw pass.
@@ -480,16 +482,16 @@ public class UI {
             previous = piece;
             newX += pieceWidth;
         }
+
+        //endregion
     }
 
     public static void drawEvalBar(Graphics g, JPanel panel, Rectangle boardBounds) {
         double stored = Main.board.currentEval;
         double eval = stored;
         if (Main.currentEngine == null) return;
-        if (!Main.currentEngine.isAwaitingResponse) {
-            eval = Main.currentEngine.getEval(3);
-        }
-//                eval *= -1;
+
+        // Calculate eval bar bounds
         double analysisBarOffset = 4 * eval / (Math.abs(eval) + 4); // in units of squares
         int divider = (int) (boardBounds.y + (double) boardBounds.height / 2 + analysisBarOffset * boardBounds.width / 8);
         Rectangle evalBar = new Rectangle(boardBounds.x - 30 * boardBounds.height / 256, boardBounds.y, boardBounds.height / 16, boardBounds.height);

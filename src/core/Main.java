@@ -6,7 +6,7 @@ import static core.UI.*;
 
 public class Main {
 
-    public static boolean debug = true;
+    public static boolean debug = false;
 
     public static Board board = new Board();
 
@@ -92,8 +92,8 @@ public class Main {
         String KING_AND_PAWN_MIRRORED_ENDGAME_TESTING_FEN = "1k6/2p5/8/8/8/8/2PK4/8 b - - 0 1";
         String DEVELOPMENT_TESTING_FEN = "rnbqkbnr/pppppppp/8/8/2BPPB2/2N2N2/1PP2PPP/R2QR1K1 w Qkq - 0 1";
 
-        String selectedFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-        board.setFromFEN(selectedFEN);
+        String starterFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+        board.setFromFEN(starterFEN);
 
         // Set up engine
         currentEngine = new MyEngine();
@@ -102,15 +102,14 @@ public class Main {
         ArrayList<String> engineArgs = new ArrayList<>();
         engineArgs.add("print");
 
-        // Call and time engine's eval analysis of current position
-        long start = System.currentTimeMillis();
-//        currentEngine.calcEval(5, engineArgs);
-//        currentEngine.makeBestMove(2);
-        System.out.println("\nTime taken: " + (System.currentTimeMillis() - start) + "ms");
-
         // Set up engine to play as black
         currentEngine.isPlaying = true;
         currentEngine.isWhite = false;
+
+        // Have engine make first move if white
+        if (currentEngine.isTurn()) {
+            currentEngine.tryPlay(3);
+        }
 
     }
 

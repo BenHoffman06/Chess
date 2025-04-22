@@ -4,28 +4,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static core.Board.isKingInCheck;
 import static core.Board.simulateMove;
 
 public class MyEngine extends Engine {
 
+    public double currentEval = 1;
 
-    void setIsWhite(boolean isWhite) {
-        this.isWhite = isWhite;
+    @Override
+    public double getEval(int depth) {
+        return this.currentEval;
     }
 
-    boolean getIsWhite() {
-        return isWhite;
-    }
 
-
-
-    private int leafNodesProcessed = 0;
+    int leafNodesProcessed = 0;
     public int calledDepth = 0;
     public Move bestMove = null;
     // NOTE Performance (alongside possible board states) tends to get 50x slower for every time performance goes up by 1
@@ -103,9 +98,11 @@ public class MyEngine extends Engine {
                 currentBestMove = move;
             }
 
-            System.out.println("move: " + childEval);
-            System.out.println("bestMove: " + currentBestMove);
-            System.out.println("bestEval: " + bestEval);
+            if (Main.debug) {
+                System.out.println("move: " + childEval);
+                System.out.println("bestMove: " + currentBestMove);
+                System.out.println("bestEval: " + bestEval);
+            }
         }
 
         // Update final best move when complete
@@ -115,16 +112,60 @@ public class MyEngine extends Engine {
         response[1] = String.valueOf(bestEval); // Set eval field
         response[0] = bestMove.getNotation(); // Set best move field
 
-        System.out.println("Leaf nodes processed: " + leafNodesProcessed);
-
         return response;
     }
+
+    /**
+     * Duplicates super's makeBestMove() but adds leaf node count
+     */
+    @Override
+    void makeBestMove(int depth) {
+        CompletableFuture<String> futureMove = getBestMoveInNewThread(depth);
+        long startTime = System.currentTimeMillis();
+        AtomicBoolean completed = new AtomicBoolean(false);
+
+        // Start a timer thread
+        Thread timerThread = new Thread(() -> {
+            try {
+                while (!completed.get()) {
+                    Thread.sleep(5000); // Wait for 5 seconds
+                    if (!completed.get()) {
+                        long elapsedTime = System.currentTimeMillis() - startTime;
+//                        System.out.println("Still waiting for best move... " + elapsedTime + " milliseconds elapsed");
+                    }
+                }
+            } catch (InterruptedException e) {
+                // Thread interrupted, exit silently
+            }
+        });
+        timerThread.start();
+
+        // Use callback to handle the result when it's ready
+        futureMove.thenAccept(bestMove -> {
+            completed.set(true);
+            long totalTime = System.currentTimeMillis() - startTime;
+            if (bestMove != null) {
+                // Execute best move
+                Move best = new Move(board, bestMove);
+                board.executeMove(best.from, best.to, best.getPromotionChoice(), true);
+                // Print move made
+                System.out.print("COMPUTER: made move " + bestMove + " after " + totalTime + " milliseconds");
+                System.out.println(" processing " + leafNodesProcessed + " leaf nodes.");
+
+
+            } else {
+                System.out.println("Failed to get best move after " + totalTime + " milliseconds");
+            }
+        });
+    }
+
 
     /**
      * Uses minimax algorithm with alpha-beta pruning for efficiency in traversing position tree
      */
     public double calcEval(int depth, double alpha, double beta, Board current, boolean isMaximiser, Board board) {
-        System.out.println("Calc eval called.");
+        if (Main.debug) System.out.println("Calc eval called.");
+
         if (depth == 0) {
             return calcEvalBaseCase(board);
         }
@@ -150,7 +191,7 @@ public class MyEngine extends Engine {
             // Update eval
             eval = isMaximiser ? alpha : beta;
 
-            System.out.println(move.notation + "\tAlpha: " + alpha + ", Beta: " + beta);
+            if (Main.debug) System.out.println(move.notation + "\tAlpha: " + alpha + ", Beta: " + beta);
         }
         return eval;
     }
